@@ -1,0 +1,650 @@
+import React, { useState, useRef } from 'react';
+import { 
+  CalendarRange, 
+  User, 
+  GraduationCap, 
+  Printer, 
+  Plus, 
+  MapPin, 
+  Sparkles,
+  Search,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Clock,
+  Check,
+  AlertCircle
+} from 'lucide-react';
+import { Teacher, TimetableSlot, DayOfWeek, ExtraClassRequest } from '../types';
+
+interface TimetableManagementProps {
+  teachers: Teacher[];
+  selectedDate: string; // YYYY-MM-DD
+  onScheduleExtraClass: (req: { teacherId: string; classSection: string; date: string; periodIndex: number }) => Promise<any>;
+  onUpdateSlot: (teacherId: string, day: DayOfWeek, periodIndex: number, slot: TimetableSlot | null) => Promise<any>;
+  darkTheme: boolean;
+}
+
+export default function TimetableManagement({
+  teachers,
+  selectedDate,
+  onScheduleExtraClass,
+  onUpdateSlot,
+  darkTheme
+}: TimetableManagementProps) {
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'teacher'>('daily');
+  const [selectedTeacherId, setSelectedTeacherId] = useState(teachers[0]?.id || '');
+  const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
+
+  // Extra Class Form State
+  const [isExtraModalOpen, setIsExtraModalOpen] = useState(false);
+  const [formTeacherId, setFormTeacherId] = useState(teachers[0]?.id || '');
+  const [formClass, setFormClass] = useState('Grade 10-A');
+  const [formDate, setFormDate] = useState(selectedDate);
+  const [suggestedSlots, setSuggestedSlots] = useState<any[]>([]);
+  const [selectedSuggestedPeriod, setSelectedSuggestedPeriod] = useState<number | null>(null);
+  const [extraClassError, setExtraClassError] = useState<string | null>(null);
+  const [extraClassSuccess, setExtraClassSuccess] = useState<string | null>(null);
+
+  // Manual Slot Edit Form State
+  const [isEditSlotOpen, setIsEditSlotOpen] = useState(false);
+  const [editTeacherId, setEditTeacherId] = useState('');
+  const [editDay, setEditDay] = useState<DayOfWeek>('Monday');
+  const [editPeriodIdx, setEditPeriodIdx] = useState(0);
+  const [editSubject, setEditSubject] = useState('');
+  const [editClass, setEditClass] = useState('Grade 10-A');
+  const [editRoom, setEditRoom] = useState('Room 101');
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const daysOrder: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const timings = [
+    '08:30 AM - 09:20 AM',
+    '09:20 AM - 10:10 AM',
+    '10:30 AM - 11:20 AM',
+    '11:20 AM - 12:10 PM',
+    '01:00 PM - 01:50 PM',
+    '01:50 PM - 02:40 PM'
+  ];
+
+  const classList = [
+    'Grade 10-A', 'Grade 10-B', 'Grade 9-A', 'Grade 9-B', 
+    'Grade 11-A', 'Grade 11-B', 'Grade 12-A', 'Grade 12-B'
+  ];
+
+  const printAreaRef = useRef<HTMLDivElement>(null);
+
+  // Trigger browser print for printable timetable block
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Run Smart Conflict-free Slot Suggestion search
+  const handleRunSmartSuggestion = async () => {
+    setExtraClassError(null);
+    setSelectedSuggestedPeriod(null);
+    try {
+      const resp = await fetch(`/api/extra-classes/suggest?teacherId=${formTeacherId}&classSection=${formClass}&date=${formDate}`);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Failed to suggestion');
+      
+      setSuggestedSlots(data.suggestions || []);
+      if (data.suggestions && data.suggestions.length === 0) {
+        setExtraClassError(`No conflict-free slots found for Day: ${data.day}. Both Teacher and Class are fully occupied with normal lessons.`);
+      }
+    } catch (err: any) {
+      setExtraClassError(err.message || 'Error scheduling');
+    }
+  };
+
+  // Submit approved extra class booking
+  const handleBookExtraClass = async () => {
+    if (selectedSuggestedPeriod === null) {
+      setExtraClassError('Please select one of the suggested conflict-free periods.');
+      return;
+    }
+
+    try {
+      setExtraClassError(null);
+      setExtraClassSuccess(null);
+      await onScheduleExtraClass({
+        teacherId: formTeacherId,
+        classSection: formClass,
+        date: formDate,
+        periodIndex: selectedSuggestedPeriod
+      });
+
+      setExtraClassSuccess('Extra class successfully scheduled with automatic conflict protection!');
+      setTimeout(() => {
+        setIsExtraModalOpen(false);
+        setExtraClassSuccess(null);
+        setSuggestedSlots([]);
+      }, 1500);
+
+    } catch (err: any) {
+      setExtraClassError(err.message || 'Failed booking slot');
+    }
+  };
+
+  // Edit manual schedule slot action
+  const handleOpenEditSlot = (tId: string, d: DayOfWeek, pId: number) => {
+    const teacher = teachers.find(t => t.id === tId);
+    if (!teacher) return;
+    
+    const currSlot = teacher.schedule[d]?.[pId];
+    
+    setEditTeacherId(tId);
+    setEditDay(d);
+    setEditPeriodIdx(pId);
+    setEditSubject(currSlot ? currSlot.subject : teacher.subject);
+    setEditClass(currSlot ? currSlot.classSection : classList[0]);
+    setEditRoom(currSlot ? currSlot.room : `Room ${100 + pId + 1}`);
+    setEditError(null);
+    setIsEditSlotOpen(true);
+  };
+
+  const handleSaveSlot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditError(null);
+
+    const slotPayload = editSubject.trim() ? {
+      subject: editSubject,
+      classSection: editClass,
+      room: editRoom
+    } : null;
+
+    try {
+      await onUpdateSlot(editTeacherId, editDay, editPeriodIdx, slotPayload);
+      setIsEditSlotOpen(false);
+    } catch (err: any) {
+      setEditError(err.message || 'Timetable conflict detected.');
+    }
+  };
+
+  // Get current active schedule weekday
+  const currentWeekDay = (() => {
+    const d = new Date(selectedDate);
+    const dayName = d.toLocaleDateString('en-US', { weekday: 'long' }) as DayOfWeek;
+    return daysOrder.includes(dayName) ? dayName : 'Monday';
+  })();
+
+  const activeTeacher = teachers.find(t => t.id === selectedTeacherId) || teachers[0];
+
+  return (
+    <div className="space-y-6">
+      
+      {/* Upper Action controller */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">XYZ Timetable Management</h2>
+          <p className={`text-sm ${darkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+            Audit lessons, schedule extra classes with dynamic conflict protection, or print sheets.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePrint}
+            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all border shrink-0 cursor-pointer flex items-center gap-1 ${
+              darkTheme ? 'bg-slate-800 border-slate-700 hover:bg-slate-750' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-750'
+            }`}
+            id="timetable-print-btn"
+          >
+            <Printer className="h-4 w-4" /> Print / Export PDF
+          </button>
+          
+          <button
+            onClick={() => {
+              setIsExtraModalOpen(true);
+              setFormTeacherId(teachers[0]?.id || '');
+              setSuggestedSlots([]);
+              setExtraClassError(null);
+              setExtraClassSuccess(null);
+            }}
+            className="px-3.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-lg shadow-blue-500/10 cursor-pointer flex items-center gap-1.5"
+            id="timetable-extra-alloc-btn"
+          >
+            <Sparkles className="h-4 w-4" /> Book Extra Class (Conflict-Free)
+          </button>
+        </div>
+      </div>
+
+      {/* FILTER BUTTONS & VIEW CHOOSE */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-100 dark:bg-slate-900 p-2 rounded-2xl">
+        <div className="flex bg-white dark:bg-slate-950 p-1 rounded-xl shadow-xs w-full sm:w-auto">
+          <button
+            onClick={() => setViewMode('daily')}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+              viewMode === 'daily' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400'
+            }`}
+            id="timetable-view-daily"
+          >
+            Daily Full-School Grid
+          </button>
+          <button
+            onClick={() => setViewMode('weekly')}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+              viewMode === 'weekly' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400'
+            }`}
+            id="timetable-view-weekly"
+          >
+            Weekly Teacher Matrix
+          </button>
+        </div>
+
+        {viewMode === 'daily' && (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Day View:</span>
+            <select
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
+              className="px-3 py-1.5 border border-slate-200 text-xs font-semibold rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {daysOrder.map((day) => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {viewMode === 'weekly' && (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-semibold">Select Teacher:</span>
+            <select
+              value={selectedTeacherId}
+              onChange={(e) => setSelectedTeacherId(e.target.value)}
+              className="px-3 py-1.5 border border-slate-200 text-xs font-semibold rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {teachers.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* RENDER VIEW MODE CHASSIS */}
+      <div id="printable-timetable-registry-wrapper" ref={printAreaRef} className="printable-sheet">
+        {viewMode === 'daily' ? (
+          /* DAILY TIMETABLE MATRIX TABLE */
+          <div className={`p-6 rounded-2xl border overflow-x-auto ${
+            darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+          }`}>
+            <div className="flex justify-between items-center mb-5 shrink-0">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
+                  Daily Lessons Distribution Grid ({selectedDay})
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Double click any cell or click edit to overwrite lessons. Empty slots representation is prep/free time.
+                </p>
+              </div>
+            </div>
+
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className={`border-b ${darkTheme ? 'border-slate-800 bg-slate-950/40' : 'bg-slate-50/50 border-slate-100'}`}>
+                  <th className="p-3.5 font-bold text-slate-550 w-44">Educator Name</th>
+                  {timings.map((time, idx) => (
+                    <th key={idx} className="p-3.5 font-bold text-slate-550 min-w-44 border-l dark:border-slate-800">
+                      <div className="flex flex-col">
+                        <span>Period {idx + 1}</span>
+                        <span className="text-[10px] text-slate-400 font-mono mt-0.5">{time}</span>
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {teachers.map((teacher) => (
+                  <tr key={teacher.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30 transition-colors">
+                    <td className="p-3.5 font-bold text-slate-850">
+                      <div className="flex flex-col">
+                        <span>{teacher.name}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{teacher.subject}</span>
+                      </div>
+                    </td>
+                    
+                    {Array(6).fill(null).map((_, pIdx) => {
+                      const slot = teacher.schedule[selectedDay]?.[pIdx];
+                      return (
+                        <td 
+                          key={pIdx} 
+                          onClick={() => handleOpenEditSlot(teacher.id, selectedDay, pIdx)}
+                          className="p-3.5 border-l dark:border-slate-800 cursor-pointer group hover:bg-blue-50/20 dark:hover:bg-slate-800/10 transition-colors"
+                        >
+                          {slot ? (
+                            <div className="space-y-1 relative">
+                              <div className="flex justify-between items-start gap-1">
+                                <span className={`font-bold text-xs ${slot.isExtra ? 'text-indigo-600' : 'text-blue-700 dark:text-blue-300'}`}>
+                                  {slot.classSection}
+                                </span>
+                                {slot.isExtra && (
+                                  <span className="text-[9px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950/20 px-1.5 py-0.5 rounded-sm font-black">
+                                    EXTRA
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-500 truncate leading-snug">{slot.subject}</p>
+                              <div className="flex items-center gap-1 text-[9px] text-slate-400 font-semibold pt-1">
+                                <MapPin className="h-3 w-3 inline text-slate-300" />
+                                <span>{slot.room}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="py-2 flex flex-col items-center justify-center text-slate-350 dark:text-slate-600 font-bold group-hover:text-blue-500/50 transition-colors">
+                              <span className="text-[10px] tracking-wide uppercase">- FREE -</span>
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* WEEKLY TIMETABLE MATRIX TABLE FOR INDIVIDUAL TEACHER */
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {daysOrder.map((day) => (
+              <div 
+                key={day} 
+                className={`p-5 rounded-2xl border ${
+                  day === currentWeekDay 
+                    ? 'bg-blue-50/10 border-blue-200 ring-2 ring-blue-500/10' 
+                    : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+                }`}
+              >
+                <div className="flex justify-between items-center pb-3.5 border-b dark:border-slate-800 mb-4">
+                  <h4 className="font-bold text-sm tracking-tight text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${day === currentWeekDay ? 'bg-blue-600' : 'bg-slate-400'}`}></span>
+                    {day}
+                  </h4>
+                  {day === currentWeekDay && (
+                    <span className="text-[9px] font-black text-blue-600 tracking-wider font-mono">TODAY</span>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {Array(6).fill(null).map((_, pIdx) => {
+                    const slot = activeTeacher?.schedule[day]?.[pIdx];
+                    return (
+                      <div 
+                        key={pIdx} 
+                        onClick={() => handleOpenEditSlot(activeTeacher?.id, day, pIdx)}
+                        className={`p-3 rounded-xl border cursor-pointer hover:border-blue-400 dark:hover:border-slate-700 transition-all ${
+                          slot 
+                            ? 'bg-blue-50/15 border-blue-100 dark:bg-blue-950/10' 
+                            : 'bg-slate-50/30 border-dashed border-slate-200 dark:bg-slate-950/10 dark:border-slate-850'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold mb-1">
+                          <span>Period {pIdx + 1}</span>
+                          <span>{timings[pIdx].split('-')[0].trim()}</span>
+                        </div>
+
+                        {slot ? (
+                          <div>
+                            <h5 className="font-bold text-xs truncate">{slot.classSection}</h5>
+                            <p className="text-[10px] text-slate-500 mt-0.5 truncate">{slot.subject}</p>
+                            <span className="inline-block text-[9px] text-blue-600 mt-1.5 font-bold bg-blue-50 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">
+                              {slot.room}
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="text-[9px] text-slate-350 dark:text-slate-600 font-bold uppercase py-2 text-center">Available / Prep</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* MANUALLY EDIT SINGLE TIMETABLE SLOT MODAL */}
+      {isEditSlotOpen && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4 backdrop-blur-xs">
+          <div className={`w-full max-w-md p-6 rounded-2xl shadow-2xl border transition-all ${
+            darkTheme ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-white border-slate-100 text-slate-800'
+          }`}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Edit Class Slot</h3>
+              <button onClick={() => setIsEditSlotOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSlot} className="space-y-4">
+              <div className="p-3.5 bg-blue-50/30 dark:bg-blue-950/10 border border-blue-100 dark:border-blue-950 rounded-xl leading-normal text-xs text-slate-600 dark:text-slate-400">
+                <p><span className="font-bold">Educator:</span> {teachers.find(t => t.id === editTeacherId)?.name}</p>
+                <p><span className="font-bold">Timing:</span> {editDay}, Period {editPeriodIdx + 1} ({timings[editPeriodIdx]})</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Subject Name (leave blank to delete lesson)</label>
+                <input
+                  type="text"
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                  placeholder="e.g. Mathematics, Free"
+                  className="block w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white"
+                />
+              </div>
+
+              {editSubject.trim() && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Class Section</label>
+                    <select
+                      value={editClass}
+                      onChange={(e) => setEditClass(e.target.value)}
+                      className="block w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white"
+                    >
+                      {classList.map((cls) => (
+                        <option key={cls} value={cls}>{cls}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Room Assignment</label>
+                    <input
+                      type="text"
+                      value={editRoom}
+                      onChange={(e) => setEditRoom(e.target.value)}
+                      className="block w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {editError && (
+                <p className="text-xs text-red-600 font-bold bg-red-100/50 border border-red-200 p-2.5 rounded-xl">
+                  {editError}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditSlotOpen(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold text-xs shadow-lg shadow-blue-500/10 cursor-pointer"
+                >
+                  Save Timetable Slot
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* INTELLIGENT COMPREHENSIVE EXTRA CLASS MODAL */}
+      {isExtraModalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4 backdrop-blur-xs">
+          <div className={`w-full max-w-xl p-6 rounded-2xl shadow-2xl border transition-all ${
+            darkTheme ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-white border-slate-100 text-slate-800'
+          }`}>
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-bold">Automatic Extra Class Allocation Assistant</h3>
+              <button onClick={() => setIsExtraModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-xs text-slate-400 leading-normal">
+                Determine completely clean and conflict-free study slots. The scheduler will check that both the educator AND target student block have 100% available slots in their respective timelines.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Select Teacher Office</label>
+                  <select
+                    value={formTeacherId}
+                    onChange={(e) => setFormTeacherId(e.target.value)}
+                    className="block w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white"
+                  >
+                    {teachers.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Target Student Block</label>
+                  <select
+                    value={formClass}
+                    onChange={(e) => setFormClass(e.target.value)}
+                    className="block w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white"
+                  >
+                    {classList.map((cls) => (
+                      <option key={cls} value={cls}>{cls}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Target Date</label>
+                  <input
+                    type="date"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    className="block w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs text-slate-750 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={handleRunSmartSuggestion}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-xs font-bold shadow-md shadow-blue-500/10 cursor-pointer flex items-center gap-1"
+                >
+                  <Sparkles className="h-4 w-4" /> Run Conflict Check
+                </button>
+              </div>
+
+              {/* Suggestions grid of free slots */}
+              {suggestedSlots.length > 0 && (
+                <div className="space-y-3 pt-3 border-t dark:border-slate-800">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Available Conflict-Free Timetable Slots:</h4>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {suggestedSlots.map((item) => (
+                      <button
+                        key={item.periodIndex}
+                        onClick={() => setSelectedSuggestedPeriod(item.periodIndex)}
+                        className={`p-3 rounded-xl border text-left flex justify-between items-center transition-all ${
+                          selectedSuggestedPeriod === item.periodIndex
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                            : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-900 text-slate-800 dark:text-slate-200 hover:border-blue-400'
+                        }`}
+                        type="button"
+                      >
+                        <div>
+                          <p className="text-xs font-bold">{item.timeLabel}</p>
+                          <p className={`text-[10px] mt-0.5 ${selectedSuggestedPeriod === item.periodIndex ? 'text-blue-105' : 'text-slate-400'}`}>
+                            {timings[item.periodIndex]}
+                          </p>
+                        </div>
+                        {selectedSuggestedPeriod === item.periodIndex && (
+                          <Check className="h-4 w-4 text-white shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-4 border-t dark:border-slate-800">
+                    <button
+                      onClick={() => setIsExtraModalOpen(false)}
+                      className="px-4 py-2 border border-slate-200 rounded-xl text-xs"
+                    >
+                      Close Roster
+                    </button>
+                    <button
+                      onClick={handleBookExtraClass}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold text-xs"
+                    >
+                      Approve & Register Slot
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {extraClassError && (
+                <div className="p-3.5 bg-red-50 dark:bg-red-955/20 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 animate-bounce" />
+                  <span>{extraClassError}</span>
+                </div>
+              )}
+
+              {extraClassSuccess && (
+                <div className="p-3.5 bg-green-50 dark:bg-green-955/20 border border-green-200 dark:border-green-900 rounded-xl text-xs text-green-700 dark:text-green-400 flex gap-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{extraClassSuccess}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Print Styles for clean Export */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #root {
+            background-color: white !important;
+          }
+          #sidebar-container-element {
+            display: none !important;
+          }
+          #timetable-print-btn, #timetable-extra-alloc-btn, #timetable-view-daily, #timetable-view-weekly {
+            display: none !important;
+          }
+          #printable-timetable-registry-wrapper, #printable-timetable-registry-wrapper * {
+            visibility: visible;
+          }
+          #printable-timetable-registry-wrapper {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background-color: white !important;
+            color: black !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
