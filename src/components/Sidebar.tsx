@@ -9,7 +9,9 @@ import {
   LogOut, 
   School,
   Sparkles,
-  FileText
+  FileText,
+  GraduationCap,
+  BookOpen
 } from 'lucide-react';
 import { UserSession } from '../types';
 
@@ -37,6 +39,8 @@ export default function Sidebar({
     { id: 'leaves', label: 'Leave Center', icon: FileText, roles: ['admin', 'teacher'] },
     { id: 'timetable', label: 'Timetable Grid', icon: CalendarRange, roles: ['admin', 'teacher'] },
     { id: 'teachers', label: 'Teacher Management', icon: Users, roles: ['admin'] },
+    { id: 'students', label: 'Student Records', icon: GraduationCap, roles: ['admin', 'teacher'] },
+    { id: 'lessons-learned', label: 'Lessons Learned', icon: BookOpen, roles: ['admin', 'teacher'] },
     { id: 'attendance', label: 'Attendance Tracker', icon: ClipboardCheck, roles: ['admin'] },
     { id: 'substitute', label: 'Substitute Manager', icon: UserPlus, roles: ['admin'] },
     { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['admin', 'teacher'] },

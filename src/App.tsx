@@ -33,6 +33,8 @@ import SubstituteManagement from './components/SubstituteManagement';
 import ReportsAndAnalytics from './components/ReportsAndAnalytics';
 import SettingsPage from './components/SettingsPage';
 import LeaveManagement from './components/LeaveManagement';
+import StudentManagement from './components/StudentManagement';
+import LessonsLearned from './components/LessonsLearned';
 
 export default function App() {
   const [session, setSession] = useState<UserSession | null>(null);
@@ -445,6 +447,18 @@ export default function App() {
               {currentTab === 'reports' && (
                 <ReportsAndAnalytics 
                   state={state} 
+                  darkTheme={darkTheme}
+                />
+              )}
+
+              {currentTab === 'students' && (
+                <StudentManagement 
+                  darkTheme={darkTheme}
+                />
+              )}
+
+              {currentTab === 'lessons-learned' && (
+                <LessonsLearned 
                   darkTheme={darkTheme}
                 />
               )}

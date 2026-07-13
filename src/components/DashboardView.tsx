@@ -11,7 +11,11 @@ import {
   CheckCircle,
   Clock,
   Briefcase,
-  FileText
+  FileText,
+  GraduationCap,
+  BarChart3,
+  ClipboardCheck,
+  TrendingUp
 } from 'lucide-react';
 import { 
   ERPDataState, 
@@ -139,86 +143,187 @@ export default function DashboardView({
         /* ADMIN DASHBOARD */
         <div className="space-y-6">
           {/* Dashboard Summary Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             
-            <div className={`p-5 rounded-2xl border transition-all ${
-              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-            }`}>
+            {/* Faculty */}
+            <div 
+              onClick={() => onNavigate('teachers')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+              id="dash-card-faculty"
+            >
               <div className="flex justify-between items-start mb-3">
                 <span className="p-2 bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 rounded-xl">
                   <Users className="h-6 w-6" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Total</span>
+                <span className="text-xs font-bold font-mono text-slate-400">Faculty</span>
               </div>
-              <p className="text-2xl font-black">{totalTeachers}</p>
+              <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{totalTeachers}</p>
               <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Faculty Teachers</h4>
             </div>
 
-            <div className={`p-5 rounded-2xl border transition-all ${
-              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-            }`}>
+            {/* Teachers */}
+            <div 
+              onClick={() => onNavigate('teachers')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+              id="dash-card-teachers"
+            >
               <div className="flex justify-between items-start mb-3">
                 <span className="p-2 bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400 rounded-xl">
-                  <BookOpen className="h-6 w-6" />
+                  <Users className="h-6 w-6" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Today</span>
+                <span className="text-xs font-bold font-mono text-slate-400">Teachers</span>
               </div>
-              <p className="text-2xl font-black">{standardClassesToday}</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Lessons Slotted</h4>
+              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{totalTeachers} Active</p>
+              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Teacher Registry</h4>
             </div>
 
-            <div className={`p-5 rounded-2xl border transition-all ${
-              absentCount > 0 
-                ? 'bg-red-50/50 border-red-100 dark:bg-red-950/10 dark:border-red-950/30'
-                : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-            }`}>
+            {/* Students */}
+            <div 
+              onClick={() => onNavigate('students')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+              id="dash-card-students"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <span className="p-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-xl">
+                  <GraduationCap className="h-6 w-6" />
+                </span>
+                <span className="text-xs font-bold font-mono text-slate-400">Students</span>
+              </div>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">12 pupils</p>
+              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Student Records</h4>
+            </div>
+
+            {/* Lessons Learned / Slotted */}
+            <div 
+              onClick={() => onNavigate('lessons-learned')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+              id="dash-card-lessons-learned"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <span className="p-2 bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400 rounded-xl">
+                  <BookOpen className="h-6 w-6" />
+                </span>
+                <span className="text-xs font-bold font-mono text-slate-400">Lessons</span>
+              </div>
+              <p className="text-2xl font-black text-violet-600 dark:text-violet-400">{standardClassesToday} Slotted</p>
+              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Lessons Learned</h4>
+            </div>
+
+            {/* Reports */}
+            <div 
+              onClick={() => onNavigate('reports')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+              id="dash-card-reports"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <span className="p-2 bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 rounded-xl">
+                  <FileText className="h-6 w-6" />
+                </span>
+                <span className="text-xs font-bold font-mono text-slate-400">Reports</span>
+              </div>
+              <p className="text-2xl font-black text-amber-600 dark:text-amber-400">Audits</p>
+              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Academic Reports</h4>
+            </div>
+
+            {/* Analytics */}
+            <div 
+              onClick={() => onNavigate('reports')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+              id="dash-card-analytics"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <span className="p-2 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 rounded-xl">
+                  <BarChart3 className="h-6 w-6" />
+                </span>
+                <span className="text-xs font-bold font-mono text-slate-400">Analytics</span>
+              </div>
+              <p className="text-2xl font-black text-rose-600 dark:text-rose-400">Trends</p>
+              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">KPIs & Charts</h4>
+            </div>
+
+            {/* Attendance Tracker */}
+            <div 
+              onClick={() => onNavigate('attendance')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                absentCount > 0 
+                  ? 'bg-red-50/50 border-red-100 dark:bg-red-950/10 dark:border-red-950/30'
+                  : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+              id="dash-card-attendance"
+            >
               <div className="flex justify-between items-start mb-3">
                 <span className={`p-2 rounded-xl ${
                   absentCount > 0 
                     ? 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400' 
-                    : 'bg-slate-100 text-slate-500'
+                    : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400'
                 }`}>
-                  <UserX className="h-6 w-6" />
+                  <ClipboardCheck className="h-6 w-6" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Absences</span>
+                <span className="text-xs font-bold font-mono text-slate-400">Attendance</span>
               </div>
-              <p className={`text-2xl font-black ${absentCount > 0 ? 'text-red-600 dark:text-red-400' : ''}`}>{absentCount}</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Absent Faculty</h4>
+              <p className={`text-2xl font-black ${absentCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-450'}`}>
+                {absentCount > 0 ? `${absentCount} Absent` : '100% Present'}
+              </p>
+              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Attendance Tracker</h4>
             </div>
 
-            <div className={`p-5 rounded-2xl border transition-all ${
-              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-            }`}>
+            {/* Scheduled Extras */}
+            <div 
+              onClick={() => onNavigate('timetable')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+              id="dash-card-extras"
+            >
               <div className="flex justify-between items-start mb-3">
-                <span className="p-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-xl">
+                <span className="p-2 bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400 rounded-xl">
                   <CalendarPlus className="h-6 w-6" />
                 </span>
                 <span className="text-xs font-bold font-mono text-slate-400">Extras</span>
               </div>
-              <p className="text-2xl font-black">{extraClassesCount}</p>
+              <p className="text-2xl font-black text-teal-600 dark:text-teal-400">{extraClassesCount}</p>
               <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Scheduled Extras</h4>
             </div>
 
-            <div className={`p-5 rounded-2xl border transition-all ${
-              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-            }`}>
+            {/* Substitute Assignments */}
+            <div 
+              onClick={() => onNavigate('substitute')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+              id="dash-card-substitute"
+            >
               <div className="flex justify-between items-start mb-3">
-                <span className="p-2 bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 rounded-xl">
-                  <Users className="h-6 w-6" />
+                <span className="p-2 bg-pink-50 text-pink-600 dark:bg-pink-950/30 dark:text-pink-400 rounded-xl">
+                  <TrendingUp className="h-6 w-6" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Logs</span>
+                <span className="text-xs font-bold font-mono text-slate-400">Substitutes</span>
               </div>
-              <p className="text-2xl font-black">{substitutesCount}</p>
+              <p className="text-2xl font-black text-pink-600 dark:text-pink-400">{substitutesCount} slots</p>
               <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Substitute Assgs</h4>
             </div>
 
+            {/* Pending Leaves */}
             <div 
               onClick={() => onNavigate('leaves')}
               className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
                 (state.leaveRequests || []).filter(lv => lv.status === 'Pending').length > 0 
-                  ? 'bg-amber-50/40 border-amber-200 dark:bg-amber-950/10 dark:border-amber-900/45 text-amber-900 dark:text-amber-100'
+                  ? 'bg-amber-50/45 border-amber-200 dark:bg-amber-950/10 dark:border-amber-900/45 text-amber-900 dark:text-amber-105'
                   : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
               }`}
+              id="dash-card-leaves"
             >
               <div className="flex justify-between items-start mb-3">
                 <span className={`p-2 rounded-xl ${
@@ -228,10 +333,10 @@ export default function DashboardView({
                 }`}>
                   <FileText className="h-6 w-6" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400 font-extrabold">Leaves</span>
+                <span className="text-xs font-bold font-mono text-slate-400">Leaves</span>
               </div>
-              <p className={`text-2xl font-black ${(state.leaveRequests || []).filter(lv => lv.status === 'Pending').length > 0 ? 'text-amber-600 dark:text-amber-450' : ''}`}>
-                {(state.leaveRequests || []).filter(lv => lv.status === 'Pending').length}
+              <p className={`text-2xl font-black ${(state.leaveRequests || []).filter(lv => lv.status === 'Pending').length > 0 ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                {(state.leaveRequests || []).filter(lv => lv.status === 'Pending').length} Pending
               </p>
               <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Pending Leaves</h4>
             </div>
@@ -416,45 +521,105 @@ export default function DashboardView({
       ) : (
         /* TEACHER HUB DASHBOARD */
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             
-            <div className={`p-5 rounded-2xl border transition-all ${
-              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-            }`}>
+            <div 
+              onClick={() => onNavigate('timetable')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+            >
               <div className="flex justify-between items-start mb-2">
                 <span className="p-2 bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 rounded-xl">
                   <Briefcase className="h-5 w-5" />
                 </span>
                 <span className="text-xs font-bold font-mono text-slate-400">Weekly</span>
               </div>
-              <p className="text-2xl font-black">{teacherWeeklyWorkload} classes</p>
+              <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{teacherWeeklyWorkload} classes</p>
               <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Current Workload</h4>
             </div>
 
-            <div className={`p-5 rounded-2xl border transition-all ${
-              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-            }`}>
+            <div 
+              onClick={() => onNavigate('timetable')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+            >
               <div className="flex justify-between items-start mb-2">
                 <span className="p-2 bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400 rounded-xl">
                   <Clock className="h-5 w-5" />
                 </span>
                 <span className="text-xs font-bold font-mono text-slate-400">Today</span>
               </div>
-              <p className="text-2xl font-black">{personalClassesTodayCount} sessions</p>
+              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{personalClassesTodayCount} sessions</p>
               <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Assigned Lessons Today</h4>
             </div>
 
-            <div className={`p-5 rounded-2xl border transition-all ${
-              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-            }`}>
+            <div 
+              onClick={() => onNavigate('timetable')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+            >
               <div className="flex justify-between items-start mb-2">
                 <span className="p-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-xl">
                   <CalendarPlus className="h-5 w-5" />
                 </span>
                 <span className="text-xs font-bold font-mono text-slate-400">Sub</span>
               </div>
-              <p className="text-2xl font-black">{substituteClassesTutorsTodayCount}</p>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{substituteClassesTutorsTodayCount}</p>
               <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Sub Assignments Today</h4>
+            </div>
+
+            {/* Students Card */}
+            <div 
+              onClick={() => onNavigate('students')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <span className="p-2 bg-pink-50 text-pink-600 dark:bg-pink-950/30 dark:text-pink-400 rounded-xl">
+                  <GraduationCap className="h-5 w-5" />
+                </span>
+                <span className="text-xs font-bold font-mono text-slate-400">Pupils</span>
+              </div>
+              <p className="text-2xl font-black text-pink-600 dark:text-pink-400">Roster</p>
+              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Student Records</h4>
+            </div>
+
+            {/* Lessons Learned */}
+            <div 
+              onClick={() => onNavigate('lessons-learned')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <span className="p-2 bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400 rounded-xl">
+                  <BookOpen className="h-5 w-5" />
+                </span>
+                <span className="text-xs font-bold font-mono text-slate-400">Syllabus</span>
+              </div>
+              <p className="text-2xl font-black text-violet-600 dark:text-violet-400">Tracker</p>
+              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Lessons Learned</h4>
+            </div>
+
+            {/* Reports */}
+            <div 
+              onClick={() => onNavigate('reports')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <span className="p-2 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 rounded-xl">
+                  <BarChart3 className="h-5 w-5" />
+                </span>
+                <span className="text-xs font-bold font-mono text-slate-400">Reports</span>
+              </div>
+              <p className="text-2xl font-black text-rose-600 dark:text-rose-400">Analytics</p>
+              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Reports & Analytics</h4>
             </div>
 
             <div className={`p-5 rounded-2xl border transition-all ${
@@ -477,7 +642,7 @@ export default function DashboardView({
               }`}
             >
               <div className="flex justify-between items-start mb-2">
-                <span className="p-2 bg-indigo-50 text-indigo-650 dark:bg-indigo-950/30 dark:text-indigo-400 rounded-xl">
+                <span className="p-2 bg-indigo-50 text-indigo-655 dark:bg-indigo-950/30 dark:text-indigo-400 rounded-xl">
                   <FileText className="h-5 w-5" />
                 </span>
                 <span className="text-xs font-bold font-mono text-slate-400">Leaves</span>
