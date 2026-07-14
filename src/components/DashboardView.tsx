@@ -1,29 +1,21 @@
-import { useState } from 'react';
 import { 
   Users, 
   BookOpen, 
-  UserX, 
-  CalendarPlus, 
   ArrowRight, 
   Bell, 
-  ShieldAlert, 
   X,
   CheckCircle,
   Clock,
   Briefcase,
   FileText,
-  GraduationCap,
-  BarChart3,
   ClipboardCheck,
-  TrendingUp
+  TrendingUp,
+  CalendarPlus
 } from 'lucide-react';
 import { 
   ERPDataState, 
   UserSession, 
-  Teacher, 
-  AttendanceRecord,
-  SystemNotification,
-  DayOfWeek
+  DayOfWeek 
 } from '../types';
 
 interface DashboardViewProps {
@@ -113,17 +105,19 @@ export default function DashboardView({
     ).length;
   }
 
+  const schoolName = state.settings?.schoolInfo?.name || "XYZ Public School";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" id="dashboard-view-main">
       
-      {/* Top Banner with date controller */}
+      {/* Top Banner */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            {isAdmin ? 'XYZ Admin Dashboard' : `Welcome Back, ${session.name}!`}
+          <h2 className="text-2xl font-black tracking-tight">
+            {isAdmin ? 'Academic Administration Dashboard' : `Welcome Back, ${session.name}!`}
           </h2>
-          <p className={`text-sm ${darkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
-            System Date Focus: <span className="font-semibold text-blue-600">{selectedDate}</span> ({currentDayName})
+          <p className={`text-xs font-semibold ${darkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
+            System Date Focus: <span className="text-blue-600 font-bold">{selectedDate}</span> ({currentDayName})
             {isWeekend && ' - Showing Monday Schedule Preview (Weekend)'}
           </p>
         </div>
@@ -131,10 +125,11 @@ export default function DashboardView({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onNavigate('timetable')}
-            className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-lg shadow-blue-500/10 cursor-pointer flex items-center gap-1.5"
+            className="px-4 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-lg shadow-blue-500/10 cursor-pointer flex items-center gap-1.5"
             id="dash-quick-timetable-btn"
+            type="button"
           >
-            <BookOpen className="h-4 w-4" /> View Full Timetable Grid
+            <BookOpen className="h-4 w-4 shrink-0" /> View Live Timetable Grid
           </button>
         </div>
       </div>
@@ -143,7 +138,7 @@ export default function DashboardView({
         /* ADMIN DASHBOARD */
         <div className="space-y-6">
           {/* Dashboard Summary Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             
             {/* Faculty */}
             <div 
@@ -157,103 +152,13 @@ export default function DashboardView({
                 <span className="p-2 bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 rounded-xl">
                   <Users className="h-6 w-6" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Faculty</span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">Faculty</span>
               </div>
               <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{totalTeachers}</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Faculty Teachers</h4>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Teachers Enrolled</h4>
             </div>
 
-            {/* Teachers */}
-            <div 
-              onClick={() => onNavigate('teachers')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
-                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-              }`}
-              id="dash-card-teachers"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <span className="p-2 bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400 rounded-xl">
-                  <Users className="h-6 w-6" />
-                </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Teachers</span>
-              </div>
-              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{totalTeachers} Active</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Teacher Registry</h4>
-            </div>
-
-            {/* Students */}
-            <div 
-              onClick={() => onNavigate('students')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
-                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-              }`}
-              id="dash-card-students"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <span className="p-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-xl">
-                  <GraduationCap className="h-6 w-6" />
-                </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Students</span>
-              </div>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">12 pupils</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Student Records</h4>
-            </div>
-
-            {/* Lessons Learned / Slotted */}
-            <div 
-              onClick={() => onNavigate('lessons-learned')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
-                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-              }`}
-              id="dash-card-lessons-learned"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <span className="p-2 bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400 rounded-xl">
-                  <BookOpen className="h-6 w-6" />
-                </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Lessons</span>
-              </div>
-              <p className="text-2xl font-black text-violet-600 dark:text-violet-400">{standardClassesToday} Slotted</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Lessons Learned</h4>
-            </div>
-
-            {/* Reports */}
-            <div 
-              onClick={() => onNavigate('reports')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
-                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-              }`}
-              id="dash-card-reports"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <span className="p-2 bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 rounded-xl">
-                  <FileText className="h-6 w-6" />
-                </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Reports</span>
-              </div>
-              <p className="text-2xl font-black text-amber-600 dark:text-amber-400">Audits</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Academic Reports</h4>
-            </div>
-
-            {/* Analytics */}
-            <div 
-              onClick={() => onNavigate('reports')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
-                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-              }`}
-              id="dash-card-analytics"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <span className="p-2 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 rounded-xl">
-                  <BarChart3 className="h-6 w-6" />
-                </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Analytics</span>
-              </div>
-              <p className="text-2xl font-black text-rose-600 dark:text-rose-400">Trends</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">KPIs & Charts</h4>
-            </div>
-
-            {/* Attendance Tracker */}
+            {/* Attendance */}
             <div 
               onClick={() => onNavigate('attendance')}
               className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
@@ -271,12 +176,12 @@ export default function DashboardView({
                 }`}>
                   <ClipboardCheck className="h-6 w-6" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Attendance</span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">Attendance</span>
               </div>
               <p className={`text-2xl font-black ${absentCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-450'}`}>
                 {absentCount > 0 ? `${absentCount} Absent` : '100% Present'}
               </p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Attendance Tracker</h4>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Daily Presence</h4>
             </div>
 
             {/* Scheduled Extras */}
@@ -291,13 +196,13 @@ export default function DashboardView({
                 <span className="p-2 bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400 rounded-xl">
                   <CalendarPlus className="h-6 w-6" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Extras</span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">Extra Hours</span>
               </div>
               <p className="text-2xl font-black text-teal-600 dark:text-teal-400">{extraClassesCount}</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Scheduled Extras</h4>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Scheduled Today</h4>
             </div>
 
-            {/* Substitute Assignments */}
+            {/* Substitutions */}
             <div 
               onClick={() => onNavigate('substitute')}
               className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
@@ -309,10 +214,10 @@ export default function DashboardView({
                 <span className="p-2 bg-pink-50 text-pink-600 dark:bg-pink-950/30 dark:text-pink-400 rounded-xl">
                   <TrendingUp className="h-6 w-6" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Substitutes</span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">Substitutions</span>
               </div>
-              <p className="text-2xl font-black text-pink-600 dark:text-pink-400">{substitutesCount} slots</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Substitute Assgs</h4>
+              <p className="text-2xl font-black text-pink-600 dark:text-pink-400">{substitutesCount} Slots</p>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Assigned Today</h4>
             </div>
 
             {/* Pending Leaves */}
@@ -333,17 +238,35 @@ export default function DashboardView({
                 }`}>
                   <FileText className="h-6 w-6" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Leaves</span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">Leaves</span>
               </div>
-              <p className={`text-2xl font-black ${(state.leaveRequests || []).filter(lv => lv.status === 'Pending').length > 0 ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+              <p className={`text-2xl font-black ${(state.leaveRequests || []).filter(lv => lv.status === 'Pending').length > 0 ? 'text-amber-600 dark:text-amber-450' : ''}`}>
                 {(state.leaveRequests || []).filter(lv => lv.status === 'Pending').length} Pending
               </p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Pending Leaves</h4>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Pending Leaves</h4>
+            </div>
+
+            {/* Slotted Classes */}
+            <div 
+              onClick={() => onNavigate('timetable')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+              id="dash-card-lessons-slotted"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <span className="p-2 bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400 rounded-xl">
+                  <BookOpen className="h-6 w-6" />
+                </span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">Lessons</span>
+              </div>
+              <p className="text-2xl font-black text-violet-600 dark:text-violet-400">{standardClassesToday} Slotted</p>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Periods Active Today</h4>
             </div>
 
           </div>
 
-          {/* Secondary Layout grid - Alerts & Action portal */}
+          {/* Secondary Layout Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Left Block: Critical Daily Alarms & Actionable Absences */}
@@ -356,21 +279,22 @@ export default function DashboardView({
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-4 bg-red-500 rounded-full"></div>
-                    <h3 className="font-bold text-base">Faculty Absences (Requires Substitution)</h3>
+                    <h3 className="font-bold text-base text-slate-850 dark:text-white">Active Absences (Requires Substitute Coverage)</h3>
                   </div>
                   <button 
                     onClick={() => onNavigate('attendance')}
-                    className="text-xs text-blue-600 hover:underline font-bold"
+                    className="text-xs text-blue-600 hover:underline font-bold cursor-pointer"
+                    type="button"
                   >
-                    Open Register
+                    Open Attendance
                   </button>
                 </div>
 
                 {absentCount === 0 ? (
                   <div className="py-8 text-center text-slate-400 text-sm flex flex-col items-center gap-2">
                     <CheckCircle className="h-8 w-8 text-emerald-500 animate-pulse" />
-                    <p className="font-semibold">All scheduled educators are present today.</p>
-                    <p className="text-xs">No active substitution coverages require immediate assignment.</p>
+                    <p className="font-bold text-slate-800 dark:text-white">All Scheduled Faculty are Present</p>
+                    <p className="text-xs text-slate-500">Every lesson hour today is covered by primary assigned teachers.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -378,7 +302,6 @@ export default function DashboardView({
                       const teacher = state.teachers.find(t => t.id === att.teacherId);
                       if (!teacher) return null;
                       
-                      // Calculate active slots that need cover
                       const activeSlotsCount = teacher.schedule[activeWeekDay]?.filter(slot => slot !== null).length || 0;
                       const coverageCompleted = Object.keys(att.substitutes || {}).length;
 
@@ -389,16 +312,16 @@ export default function DashboardView({
                             : 'bg-red-50/20 border-red-100 dark:bg-red-950/10 dark:border-red-900/10'
                         }`}>
                           <div>
-                            <p className="font-bold text-sm">{teacher.name}</p>
-                            <p className="text-xs text-slate-400 font-medium">
-                              Dept: {teacher.subject} • {activeSlotsCount} classes slotted today
+                            <p className="font-bold text-sm text-slate-855 dark:text-white">{teacher.name}</p>
+                            <p className="text-[11px] text-slate-450 font-bold mt-0.5">
+                              Subject: {teacher.subject} • {activeSlotsCount} classes slotted on {activeWeekDay}
                             </p>
                           </div>
 
                           <div className="flex items-center gap-3">
-                            <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                            <span className={`text-[11px] px-2.5 py-1 rounded-full font-bold ${
                               coverageCompleted >= activeSlotsCount
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-450'
                                 : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400'
                             }`}>
                               Covered: {coverageCompleted} / {activeSlotsCount}
@@ -406,9 +329,10 @@ export default function DashboardView({
                             
                             <button
                               onClick={() => onNavigate('substitute')}
-                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+                              type="button"
                             >
-                              Assign Substitute <ArrowRight className="h-3.5 w-3.5" />
+                              Substitution Assigner <ArrowRight className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </div>
@@ -418,11 +342,11 @@ export default function DashboardView({
                 )}
               </div>
 
-              {/* Quick Actions Router Grid */}
+              {/* Quick Actions Grid */}
               <div className={`p-6 rounded-2xl border ${
                 darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
               }`}>
-                <h3 className="font-bold text-base mb-4 flex items-center gap-2">
+                <h3 className="font-bold text-base mb-4 flex items-center gap-2 text-slate-850 dark:text-white">
                   <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
                   Quick Administrator Operations
                 </h3>
@@ -431,24 +355,27 @@ export default function DashboardView({
                   <button
                     onClick={() => onNavigate('teachers')}
                     className="p-4 bg-slate-50 hover:bg-blue-50 dark:bg-slate-950 dark:hover:bg-slate-800 rounded-xl text-left border border-slate-100 dark:border-slate-850 transition-all cursor-pointer group"
+                    type="button"
                   >
-                    <h4 className="font-bold text-xs uppercase tracking-wider group-hover:text-blue-600 transition-colors">Add Teacher Profile</h4>
-                    <p className="text-xs text-slate-400 mt-1 leading-normal">Register and configure initial weekly timetables.</p>
+                    <h4 className="font-black text-xs uppercase tracking-wider group-hover:text-blue-600 transition-colors">Add Teacher Profile</h4>
+                    <p className="text-xs text-slate-400 mt-1 leading-normal">Register new teachers and configure initial weekly timetables.</p>
                   </button>
 
                   <button
                     onClick={() => onNavigate('timetable')}
                     className="p-4 bg-slate-50 hover:bg-blue-50 dark:bg-slate-950 dark:hover:bg-slate-800 rounded-xl text-left border border-slate-100 dark:border-slate-850 transition-all cursor-pointer group"
+                    type="button"
                   >
-                    <h4 className="font-bold text-xs uppercase tracking-wider group-hover:text-blue-600 transition-colors">Book Extra Hour</h4>
+                    <h4 className="font-black text-xs uppercase tracking-wider group-hover:text-blue-600 transition-colors">Book Extra Hour</h4>
                     <p className="text-xs text-slate-400 mt-1 leading-normal">Run auto-conflict tests and assign extra study blocks.</p>
                   </button>
 
                   <button
                     onClick={() => onNavigate('attendance')}
                     className="p-4 bg-slate-50 hover:bg-blue-50 dark:bg-slate-950 dark:hover:bg-slate-800 rounded-xl text-left border border-slate-100 dark:border-slate-850 transition-all cursor-pointer group"
+                    type="button"
                   >
-                    <h4 className="font-bold text-xs uppercase tracking-wider group-hover:text-blue-600 transition-colors">Audit Register</h4>
+                    <h4 className="font-black text-xs uppercase tracking-wider group-hover:text-blue-600 transition-colors">Audit Register</h4>
                     <p className="text-xs text-slate-400 mt-1 leading-normal">Mark today's present and absent teachers roster.</p>
                   </button>
                 </div>
@@ -456,7 +383,7 @@ export default function DashboardView({
 
             </div>
 
-            {/* Right Block: Live Alerts Alert Desk */}
+            {/* Right Block: Live Alerts Log */}
             <div className="space-y-6">
               
               <div className={`p-6 rounded-2xl border flex flex-col h-[400px] shrink-0 ${
@@ -465,12 +392,13 @@ export default function DashboardView({
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center gap-2">
                     <Bell className="h-5 w-5 text-blue-600" />
-                    <h3 className="font-bold text-base">Live Activity Alarm Log ({unreadNotifications.length})</h3>
+                    <h3 className="font-bold text-base text-slate-850 dark:text-white font-sans">Live System Log ({unreadNotifications.length})</h3>
                   </div>
                   {unreadNotifications.length > 0 && (
                     <button 
                       onClick={onMarkAllRead}
-                      className="text-xs text-blue-600 hover:underline font-bold"
+                      className="text-xs text-blue-600 hover:underline font-bold cursor-pointer"
+                      type="button"
                     >
                       Dismiss All
                     </button>
@@ -480,7 +408,7 @@ export default function DashboardView({
                 <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                   {state.notifications.length === 0 ? (
                     <div className="h-full flex items-center justify-center text-slate-400 text-xs py-10">
-                      Notifications register is entirely clear.
+                      System notifications registry is entirely clear.
                     </div>
                   ) : (
                     state.notifications.map((not) => (
@@ -495,17 +423,18 @@ export default function DashboardView({
                         {!not.read && (
                           <button
                             onClick={() => onMarkRead(not.id)}
-                            className="absolute top-3.5 right-3 text-slate-400 hover:text-slate-600"
+                            className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 cursor-pointer"
                             title="Mark as read"
+                            type="button"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        <h4 className="font-bold text-xs pr-4">{not.title}</h4>
+                        <h4 className="font-bold text-xs pr-4 text-slate-900 dark:text-white leading-normal">{not.title}</h4>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-snug">
                           {not.message}
                         </p>
-                        <p className="text-[9px] text-slate-400 mt-2 font-mono">
+                        <p className="text-[9px] text-slate-400 mt-2 font-mono font-semibold">
                           {new Date(not.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
@@ -533,10 +462,10 @@ export default function DashboardView({
                 <span className="p-2 bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 rounded-xl">
                   <Briefcase className="h-5 w-5" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Weekly</span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">Weekly</span>
               </div>
-              <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{teacherWeeklyWorkload} classes</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Current Workload</h4>
+              <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{teacherWeeklyWorkload} Classes</p>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Weekly Workload Load</h4>
             </div>
 
             <div 
@@ -549,10 +478,10 @@ export default function DashboardView({
                 <span className="p-2 bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400 rounded-xl">
                   <Clock className="h-5 w-5" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Today</span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">Today</span>
               </div>
-              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{personalClassesTodayCount} sessions</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Assigned Lessons Today</h4>
+              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{personalClassesTodayCount} Sessions</p>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Lessons Slotted Today</h4>
             </div>
 
             <div 
@@ -565,74 +494,10 @@ export default function DashboardView({
                 <span className="p-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-xl">
                   <CalendarPlus className="h-5 w-5" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Sub</span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">Substitutions</span>
               </div>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{substituteClassesTutorsTodayCount}</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Sub Assignments Today</h4>
-            </div>
-
-            {/* Students Card */}
-            <div 
-              onClick={() => onNavigate('students')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
-                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-              }`}
-            >
-              <div className="flex justify-between items-start mb-2">
-                <span className="p-2 bg-pink-50 text-pink-600 dark:bg-pink-950/30 dark:text-pink-400 rounded-xl">
-                  <GraduationCap className="h-5 w-5" />
-                </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Pupils</span>
-              </div>
-              <p className="text-2xl font-black text-pink-600 dark:text-pink-400">Roster</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Student Records</h4>
-            </div>
-
-            {/* Lessons Learned */}
-            <div 
-              onClick={() => onNavigate('lessons-learned')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
-                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-              }`}
-            >
-              <div className="flex justify-between items-start mb-2">
-                <span className="p-2 bg-violet-50 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400 rounded-xl">
-                  <BookOpen className="h-5 w-5" />
-                </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Syllabus</span>
-              </div>
-              <p className="text-2xl font-black text-violet-600 dark:text-violet-400">Tracker</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Lessons Learned</h4>
-            </div>
-
-            {/* Reports */}
-            <div 
-              onClick={() => onNavigate('reports')}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
-                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-              }`}
-            >
-              <div className="flex justify-between items-start mb-2">
-                <span className="p-2 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 rounded-xl">
-                  <BarChart3 className="h-5 w-5" />
-                </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Reports</span>
-              </div>
-              <p className="text-2xl font-black text-rose-600 dark:text-rose-400">Analytics</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Reports & Analytics</h4>
-            </div>
-
-            <div className={`p-5 rounded-2xl border transition-all ${
-              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-            }`}>
-              <div className="flex justify-between items-start mb-2">
-                <span className="p-2 bg-amber-50 text-amber-655 dark:bg-amber-950/30 dark:text-amber-400 rounded-xl">
-                  <Bell className="h-5 w-5" />
-                </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Alerts</span>
-              </div>
-              <p className="text-2xl font-black">{unreadNotifications.length}</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">Unread Mail Notifications</h4>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{substituteClassesTutorsTodayCount} Covered</p>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Assigned Coverages Today</h4>
             </div>
 
             <div 
@@ -645,10 +510,10 @@ export default function DashboardView({
                 <span className="p-2 bg-indigo-50 text-indigo-655 dark:bg-indigo-950/30 dark:text-indigo-400 rounded-xl">
                   <FileText className="h-5 w-5" />
                 </span>
-                <span className="text-xs font-bold font-mono text-slate-400">Leaves</span>
+                <span className="text-[10px] font-bold font-mono text-slate-400">Leaves</span>
               </div>
-              <p className="text-2xl font-black">{(state.leaveRequests || []).filter(lv => lv.teacherId === session.userId).length} filed</p>
-              <h4 className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">My Leave Applications</h4>
+              <p className="text-2xl font-black">{(state.leaveRequests || []).filter(lv => lv.teacherId === session.userId).length} Filed</p>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">My Leave Register</h4>
             </div>
 
           </div>
@@ -661,9 +526,9 @@ export default function DashboardView({
               <div className={`p-6 rounded-2xl border ${
                 darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
               }`}>
-                <h3 className="font-bold text-base mb-4 flex items-center gap-2">
+                <h3 className="font-bold text-base mb-4 flex items-center gap-2 text-slate-900 dark:text-white">
                   <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
-                  My Daily Timetable Slots ({activeWeekDay})
+                  My Timetable Slots For Today ({activeWeekDay})
                 </h3>
 
                 {activeTeacher ? (
@@ -690,7 +555,7 @@ export default function DashboardView({
                             </span>
                             <div>
                               <p className="text-xs font-semibold text-slate-400">{timings[pIdx]}</p>
-                              <h4 className="font-bold text-sm mt-0.5">
+                              <h4 className="font-bold text-sm mt-0.5 text-slate-900 dark:text-white">
                                 {slot ? `${slot.subject} - ${slot.classSection}` : 'Free Prep Period'}
                               </h4>
                             </div>
@@ -714,22 +579,23 @@ export default function DashboardView({
 
             </div>
 
-            {/* Right block: Quick Operations on their behalf */}
+            {/* Right block: Extra class request */}
             <div className="space-y-6">
               
               <div className={`p-6 rounded-2xl border ${
                 darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
               }`}>
-                <h3 className="font-bold text-base mb-3">Scheduling Assist</h3>
-                <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                  Request an extra class study hour dynamically. Standard algorithms will check real-time student group class bookings across the timetable system to protect from overlapping slots.
+                <h3 className="font-bold text-base mb-3 text-slate-900 dark:text-white">Scheduling Assist</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                  Request an extra study session block dynamically. Our automatic timetable logic will check student-group schedules in real time to prevent any standard course overlaps.
                 </p>
 
                 <button
                   onClick={() => onNavigate('timetable')}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/15 hover:bg-blue-700 transition-all cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/15 hover:bg-blue-700 transition-all cursor-pointer"
+                  type="button"
                 >
-                  Request Extra Class Hour <ArrowRight className="h-4 w-4" />
+                  Request Extra Class Block <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
 

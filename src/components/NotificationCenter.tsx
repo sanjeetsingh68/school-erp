@@ -32,7 +32,7 @@ interface NotificationCenterProps {
   darkTheme: boolean;
 }
 
-type TabType = 'All' | 'Unread' | 'Pending Requests' | 'Attendance' | 'Students' | 'Teachers' | 'Academics' | 'System';
+type TabType = 'All' | 'Unread' | 'Pending Requests' | 'Attendance' | 'Teachers' | 'Academics' | 'System';
 
 export default function NotificationCenter({
   notifications,
@@ -54,14 +54,12 @@ export default function NotificationCenter({
     if (activeTab === 'Unread' && n.read) return false;
     if (activeTab === 'Pending Requests') {
       const isPendingLeave = n.category === 'leave' && n.message.toLowerCase().includes('pending');
-      const isAdmissionPending = n.category === 'student' && n.message.toLowerCase().includes('pending');
       const isSubRequired = n.category === 'substitute' && n.message.toLowerCase().includes('required');
-      if (!isPendingLeave && !isAdmissionPending && !isSubRequired && !n.title.toLowerCase().includes('pending')) {
+      if (!isPendingLeave && !isSubRequired && !n.title.toLowerCase().includes('pending')) {
         return false;
       }
     }
     if (activeTab === 'Attendance' && n.category !== 'attendance') return false;
-    if (activeTab === 'Students' && n.category !== 'student') return false;
     if (activeTab === 'Teachers') {
       // Teachers tab includes leave requests or substitutions
       if (n.category !== 'leave' && n.category !== 'substitute') return false;
@@ -78,10 +76,9 @@ export default function NotificationCenter({
       
       // Check metadata names
       const teacherMatch = n.meta?.teacherName?.toLowerCase().includes(query);
-      const studentMatch = n.meta?.studentName?.toLowerCase().includes(query);
       const dateMatch = n.meta?.date?.toLowerCase().includes(query) || n.createdAt.toLowerCase().includes(query);
 
-      return titleMatch || msgMatch || catMatch || teacherMatch || studentMatch || dateMatch;
+      return titleMatch || msgMatch || catMatch || teacherMatch || dateMatch;
     }
 
     return true;
@@ -197,7 +194,6 @@ export default function NotificationCenter({
     'Unread', 
     'Pending Requests', 
     'Attendance', 
-    'Students', 
     'Teachers', 
     'Academics', 
     'System'

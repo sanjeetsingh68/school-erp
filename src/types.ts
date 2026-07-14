@@ -20,7 +20,6 @@ export interface WeeklySchedule {
 
 export interface Teacher {
   id: string;
-  schoolId?: string;
   name: string;
   email: string;
   phone: string;
@@ -32,7 +31,6 @@ export interface Teacher {
 
 export interface AttendanceRecord {
   id: string;
-  schoolId?: string;
   date: string; // YYYY-MM-DD
   teacherId: string;
   status: 'Present' | 'Absent';
@@ -42,7 +40,6 @@ export interface AttendanceRecord {
 
 export interface ExtraClassRequest {
   id: string;
-  schoolId?: string;
   teacherId: string;
   teacherName: string;
   subject: string;
@@ -56,7 +53,6 @@ export interface ExtraClassRequest {
 
 export interface SubstituteAssignment {
   id: string;
-  schoolId?: string;
   date: string; // YYYY-MM-DD
   day: DayOfWeek;
   periodIndex: number; // 0 to 5
@@ -72,18 +68,16 @@ export interface SubstituteAssignment {
 
 export interface SystemNotification {
   id: string;
-  schoolId?: string;
   title: string;
   message: string;
   type: 'info' | 'success' | 'warning' | 'danger';
   createdAt: string;
   read: boolean;
-  category?: 'leave' | 'attendance' | 'student' | 'academic' | 'substitute' | 'reports' | 'system';
+  category?: 'leave' | 'attendance' | 'academic' | 'substitute' | 'reports' | 'system';
   priority?: 'high' | 'medium' | 'low';
   relatedRecordId?: string;
   meta?: {
     teacherName?: string;
-    studentName?: string;
     date?: string;
     reason?: string;
     status?: string;
@@ -95,7 +89,6 @@ export interface SystemNotification {
 
 export interface LeaveRequest {
   id: string;
-  schoolId?: string;
   teacherId: string;
   teacherName: string;
   subject: string;
@@ -108,70 +101,49 @@ export interface LeaveRequest {
   reviewComment?: string;
 }
 
-export interface Principal {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  schoolId: string;
-  status: 'Active' | 'Suspended';
-}
-
 export interface UserSession {
   userId: string;
   name: string;
   email: string;
-  role: 'superadmin' | 'principal' | 'teacher' | 'admin';
-  schoolId?: string;
+  role: 'admin' | 'teacher';
 }
 
-export interface School {
-  id: string;
-  name: string;
-  code: string;
-  logo?: string;
-  address: string;
-  city: string;
-  state: string;
-  country: string;
-  phone: string;
-  email: string;
-  principal: string;
-  principalEmail: string;
-  board: 'CBSE' | 'ICSE' | 'State Board';
-  academicYear: string;
-  status: 'Active' | 'Grace Period' | 'Suspended' | 'Disabled';
-  subscription: 'Trial' | 'Basic' | 'Premium' | 'Enterprise';
-  subscriptionStartDate?: string;
-  licenseExpiry: string;
-  renewals: number;
-  paymentStatus: 'Paid' | 'Pending' | 'Overdue' | 'Expired';
-  autoRenewal?: boolean;
-  gracePeriodDays?: number;
-  licenseDurationMonths?: number;
-  lastPaymentDate?: string;
-  nextBillingDate?: string;
-  outstandingAmount?: number;
-  storageUsage: number; // MB
-}
-
-export interface AuditLog {
-  id: string;
-  adminName: string;
-  dateTime: string;
-  action: string;
-  reason: string;
-  schoolName?: string;
+export interface SystemSettings {
+  schoolInfo: {
+    name: string;
+    address: string;
+    email: string;
+    phone: string;
+    board: string;
+  };
+  academicSession: {
+    year: string;
+    term: string;
+  };
+  departments: string[];
+  subjects: string[];
+  workingDays: string[]; // e.g. ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+  periodDuration: number; // in minutes
+  schoolTimings: {
+    start: string; // e.g. "08:30 AM"
+    end: string;   // e.g. "02:40 PM"
+    lunchStart: string; // e.g. "12:10 PM"
+    lunchEnd: string;   // e.g. "01:00 PM"
+  };
+  holidayCalendar: { id: string; name: string; date: string }[];
+  notificationSettings: {
+    emailAlerts: boolean;
+    slackAlerts: boolean;
+    systemLogsLevel: 'all' | 'high' | 'none';
+  };
 }
 
 export interface ERPDataState {
-  schools?: School[];
-  principals?: Principal[];
   teachers: Teacher[];
   attendance: AttendanceRecord[];
   extraClassRequests: ExtraClassRequest[];
   substituteAssignments: SubstituteAssignment[];
   notifications: SystemNotification[];
   leaveRequests: LeaveRequest[];
-  auditLogs?: AuditLog[];
+  settings: SystemSettings;
 }
