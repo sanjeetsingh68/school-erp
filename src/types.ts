@@ -20,6 +20,7 @@ export interface WeeklySchedule {
 
 export interface Teacher {
   id: string;
+  schoolId?: string;
   name: string;
   email: string;
   phone: string;
@@ -31,6 +32,7 @@ export interface Teacher {
 
 export interface AttendanceRecord {
   id: string;
+  schoolId?: string;
   date: string; // YYYY-MM-DD
   teacherId: string;
   status: 'Present' | 'Absent';
@@ -40,6 +42,7 @@ export interface AttendanceRecord {
 
 export interface ExtraClassRequest {
   id: string;
+  schoolId?: string;
   teacherId: string;
   teacherName: string;
   subject: string;
@@ -53,6 +56,7 @@ export interface ExtraClassRequest {
 
 export interface SubstituteAssignment {
   id: string;
+  schoolId?: string;
   date: string; // YYYY-MM-DD
   day: DayOfWeek;
   periodIndex: number; // 0 to 5
@@ -68,6 +72,7 @@ export interface SubstituteAssignment {
 
 export interface SystemNotification {
   id: string;
+  schoolId?: string;
   title: string;
   message: string;
   type: 'info' | 'success' | 'warning' | 'danger';
@@ -90,6 +95,7 @@ export interface SystemNotification {
 
 export interface LeaveRequest {
   id: string;
+  schoolId?: string;
   teacherId: string;
   teacherName: string;
   subject: string;
@@ -102,18 +108,70 @@ export interface LeaveRequest {
   reviewComment?: string;
 }
 
+export interface Principal {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  schoolId: string;
+  status: 'Active' | 'Suspended';
+}
+
 export interface UserSession {
   userId: string;
   name: string;
   email: string;
-  role: 'admin' | 'teacher';
+  role: 'superadmin' | 'principal' | 'teacher' | 'admin';
+  schoolId?: string;
+}
+
+export interface School {
+  id: string;
+  name: string;
+  code: string;
+  logo?: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  phone: string;
+  email: string;
+  principal: string;
+  principalEmail: string;
+  board: 'CBSE' | 'ICSE' | 'State Board';
+  academicYear: string;
+  status: 'Active' | 'Grace Period' | 'Suspended' | 'Disabled';
+  subscription: 'Trial' | 'Basic' | 'Premium' | 'Enterprise';
+  subscriptionStartDate?: string;
+  licenseExpiry: string;
+  renewals: number;
+  paymentStatus: 'Paid' | 'Pending' | 'Overdue' | 'Expired';
+  autoRenewal?: boolean;
+  gracePeriodDays?: number;
+  licenseDurationMonths?: number;
+  lastPaymentDate?: string;
+  nextBillingDate?: string;
+  outstandingAmount?: number;
+  storageUsage: number; // MB
+}
+
+export interface AuditLog {
+  id: string;
+  adminName: string;
+  dateTime: string;
+  action: string;
+  reason: string;
+  schoolName?: string;
 }
 
 export interface ERPDataState {
+  schools?: School[];
+  principals?: Principal[];
   teachers: Teacher[];
   attendance: AttendanceRecord[];
   extraClassRequests: ExtraClassRequest[];
   substituteAssignments: SubstituteAssignment[];
   notifications: SystemNotification[];
   leaveRequests: LeaveRequest[];
+  auditLogs?: AuditLog[];
 }

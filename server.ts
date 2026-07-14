@@ -11,7 +11,10 @@ import {
   SystemNotification,
   DayOfWeek,
   TimetableSlot,
-  LeaveRequest
+  LeaveRequest,
+  School,
+  Principal,
+  AuditLog
 } from './src/types';
 
 const app = express();
@@ -406,14 +409,426 @@ function seedInitialData(): ERPDataState {
     }
   ];
 
+  // Set schoolId 's_xyz' to all seeded records
+  teachers.forEach(t => { if (!t.schoolId) t.schoolId = 's_xyz'; });
+  attendance.forEach(a => { if (!a.schoolId) a.schoolId = 's_xyz'; });
+  extraClassRequests.forEach(e => { if (!e.schoolId) e.schoolId = 's_xyz'; });
+  substituteAssignments.forEach(s => { if (!s.schoolId) s.schoolId = 's_xyz'; });
+  notifications.forEach(n => { if (!n.schoolId) n.schoolId = 's_xyz'; });
+  leaveRequests.forEach(l => { if (!l.schoolId) l.schoolId = 's_xyz'; });
+
+  // Add schools list
+  const schools: School[] = [
+    {
+      id: 's_xyz',
+      name: 'XYZ Public School',
+      code: 'XYZ-01',
+      address: '123 Academic Block, North Sector',
+      city: 'New Delhi',
+      state: 'Delhi',
+      country: 'India',
+      phone: '+91 11 2345 6789',
+      email: 'info@xyz.edu',
+      principal: 'Dr. Rajesh Sharma',
+      principalEmail: 'admin@xyz.edu',
+      board: 'CBSE',
+      academicYear: '2026-2027',
+      status: 'Active',
+      subscription: 'Enterprise',
+      subscriptionStartDate: '2025-07-01',
+      licenseExpiry: '2027-06-30',
+      renewals: 1,
+      paymentStatus: 'Paid',
+      autoRenewal: true,
+      gracePeriodDays: 7,
+      licenseDurationMonths: 12,
+      lastPaymentDate: '2025-06-28',
+      nextBillingDate: '2026-07-01',
+      outstandingAmount: 0,
+      storageUsage: 45.2
+    },
+    {
+      id: 's_abc',
+      name: 'ABC International School',
+      code: 'ABC-02',
+      address: '78 Lotus Valley Lane',
+      city: 'Mumbai',
+      state: 'Maharashtra',
+      country: 'India',
+      phone: '+91 22 9876 5432',
+      email: 'contact@abc.edu',
+      principal: 'Mrs. Anjali Mehta',
+      principalEmail: 'principal@abc.edu',
+      board: 'ICSE',
+      academicYear: '2026-2027',
+      status: 'Active',
+      subscription: 'Premium',
+      subscriptionStartDate: '2026-01-01',
+      licenseExpiry: '2026-12-31',
+      renewals: 0,
+      paymentStatus: 'Paid',
+      autoRenewal: true,
+      gracePeriodDays: 7,
+      licenseDurationMonths: 12,
+      lastPaymentDate: '2025-12-28',
+      nextBillingDate: '2026-12-31',
+      outstandingAmount: 0,
+      storageUsage: 12.8
+    },
+    {
+      id: 's_oak',
+      name: 'Oakridge Global Academy',
+      code: 'OGA-03',
+      address: '102 Tech Corridor Rd',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      country: 'India',
+      phone: '+91 80 4321 8765',
+      email: 'info@oakridge.edu',
+      principal: 'Mr. David Miller',
+      principalEmail: 'principal@oakridge.edu',
+      board: 'CBSE',
+      academicYear: '2026-2027',
+      status: 'Grace Period',
+      subscription: 'Basic',
+      subscriptionStartDate: '2025-07-10',
+      licenseExpiry: '2026-07-10', // Expired based on current July 14, 2026 date
+      renewals: 0,
+      paymentStatus: 'Expired',
+      autoRenewal: false,
+      gracePeriodDays: 7,
+      licenseDurationMonths: 12,
+      lastPaymentDate: '2025-07-10',
+      nextBillingDate: '2026-07-10',
+      outstandingAmount: 15000,
+      storageUsage: 8.4
+    },
+    {
+      id: 's_stx',
+      name: "St. Xavier's High School",
+      code: 'SXH-04',
+      address: 'Park Street Campus',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      country: 'India',
+      phone: '+91 33 2222 5555',
+      email: 'office@stxaviers.edu',
+      principal: 'Father Joseph Dsouza',
+      principalEmail: 'principal@stxaviers.edu',
+      board: 'ICSE',
+      academicYear: '2026-2027',
+      status: 'Suspended',
+      subscription: 'Premium',
+      subscriptionStartDate: '2025-06-01',
+      licenseExpiry: '2026-06-01', // Expired beyond 7-day grace period
+      renewals: 0,
+      paymentStatus: 'Overdue',
+      autoRenewal: false,
+      gracePeriodDays: 7,
+      licenseDurationMonths: 12,
+      lastPaymentDate: '2025-05-28',
+      nextBillingDate: '2026-06-01',
+      outstandingAmount: 25000,
+      storageUsage: 19.5
+    },
+    {
+      id: 's_pin',
+      name: 'Pinecrest Academy',
+      code: 'PCA-05',
+      address: 'Hills Extension Site',
+      city: 'Shimla',
+      state: 'Himachal Pradesh',
+      country: 'India',
+      phone: '+91 177 555 1234',
+      email: 'admin@pinecrest.edu',
+      principal: 'Mrs. Rebecca Scott',
+      principalEmail: 'principal@pinecrest.edu',
+      board: 'State Board',
+      academicYear: '2026-2027',
+      status: 'Disabled',
+      subscription: 'Enterprise',
+      subscriptionStartDate: '2025-01-15',
+      licenseExpiry: '2026-01-15', // Manually disabled / expired
+      renewals: 0,
+      paymentStatus: 'Expired',
+      autoRenewal: true,
+      gracePeriodDays: 14,
+      licenseDurationMonths: 12,
+      lastPaymentDate: '2025-01-12',
+      nextBillingDate: '2026-01-15',
+      outstandingAmount: 50000,
+      storageUsage: 5.6
+    }
+  ];
+
+  // Add principals list
+  const principals: Principal[] = [
+    {
+      id: 'p_xyz',
+      name: 'Dr. Rajesh Sharma',
+      email: 'admin@xyz.edu',
+      phone: '+91 98111 22233',
+      schoolId: 's_xyz',
+      status: 'Active'
+    },
+    {
+      id: 'p_abc',
+      name: 'Mrs. Anjali Mehta',
+      email: 'principal@abc.edu',
+      phone: '+91 98222 33344',
+      schoolId: 's_abc',
+      status: 'Active'
+    },
+    {
+      id: 'p_oak',
+      name: 'Mr. David Miller',
+      email: 'principal@oakridge.edu',
+      phone: '+91 98333 44455',
+      schoolId: 's_oak',
+      status: 'Active'
+    },
+    {
+      id: 'p_stx',
+      name: 'Father Joseph Dsouza',
+      email: 'principal@stxaviers.edu',
+      phone: '+91 98444 55566',
+      schoolId: 's_stx',
+      status: 'Active'
+    },
+    {
+      id: 'p_pin',
+      name: 'Mrs. Rebecca Scott',
+      email: 'principal@pinecrest.edu',
+      phone: '+91 98555 66677',
+      schoolId: 's_pin',
+      status: 'Active'
+    }
+  ];
+
+  // Add 5 teachers for ABC International
+  const abcTeacherNames = ['Kabir Malhotra', 'Ananya Iyer', 'Rohan Joshi', 'Meera Sen', 'Dev Patel'];
+  const abcSubjects = ['Science (Physics)', 'Mathematics', 'English Literature', 'History', 'Art & Design'];
+  const abcClasses = ['Grade 10-A', 'Grade 9-A', 'Grade 11-A', 'Grade 12-A', 'Grade 9-B'];
+  
+  const abcTeachers: Teacher[] = abcTeacherNames.map((name, index) => {
+    const id = `t_abc_${index + 1}`;
+    const subject = abcSubjects[index];
+    const defaultClass = abcClasses[index];
+    const email = `${name.toLowerCase().replace(/\s+/g, '')}@abc.edu`;
+    const phone = `+91 99000 ${Math.floor(10000 + Math.random() * 90000)}`;
+    const schedule: any = {
+      Monday: Array(6).fill(null),
+      Tuesday: Array(6).fill(null),
+      Wednesday: Array(6).fill(null),
+      Thursday: Array(6).fill(null),
+      Friday: Array(6).fill(null)
+    };
+    
+    // Quick assign standard periods
+    daysOrder.forEach((day, dIdx) => {
+      schedule[day][1] = {
+        subject,
+        classSection: defaultClass,
+        room: `Lab ${200 + index + 1}`
+      };
+      schedule[day][3] = {
+        subject,
+        classSection: defaultClass,
+        room: `Lab ${200 + index + 1}`
+      };
+    });
+
+    return {
+      id,
+      schoolId: 's_abc',
+      name,
+      email,
+      phone,
+      subject,
+      classSection: defaultClass,
+      status: 'Active',
+      schedule
+    };
+  });
+
+  teachers.push(...abcTeachers);
+
+  // Seed sample leave for ABC
+  leaveRequests.push({
+    id: 'lv_abc_1',
+    schoolId: 's_abc',
+    teacherId: 't_abc_1',
+    teacherName: 'Kabir Malhotra',
+    subject: 'Science (Physics)',
+    startDate: '2026-05-27',
+    endDate: '2026-05-28',
+    leaveType: 'Casual Leave',
+    reason: 'Family event',
+    status: 'Pending',
+    createdAt: '2026-05-25T07:15:00.000Z'
+  });
+
+  // Seed notifications for ABC
+  notifications.push({
+    id: 'n_abc_1',
+    schoolId: 's_abc',
+    title: 'New Term Registrations Open',
+    message: 'Admissions and schedules for academic year 2026-2027 have been synchronized.',
+    type: 'success',
+    createdAt: '2026-05-25T01:00:00.000Z',
+    read: false,
+    category: 'system'
+  });
+
+  // Seed attendance for ABC teachers
+  abcTeachers.forEach(teacher => {
+    attendance.push({
+      id: `att_abc_2026-05-25_${teacher.id}`,
+      schoolId: 's_abc',
+      date: '2026-05-25',
+      teacherId: teacher.id,
+      status: 'Present'
+    });
+  });
+
+  const auditLogs: AuditLog[] = [
+    {
+      id: 'audit_init_1',
+      adminName: 'SaaS Platform Engine',
+      dateTime: new Date().toISOString(),
+      action: 'System Initialized',
+      reason: 'Seeded Multi-Tenant SaaS ecosystem. Active, Grace Period, Suspended, and Disabled sample workspaces are ready.',
+      schoolName: 'All Schools'
+    }
+  ];
+
   return {
+    schools,
+    principals,
     teachers,
     attendance,
     extraClassRequests,
     substituteAssignments,
     notifications,
-    leaveRequests
+    leaveRequests,
+    auditLogs
   };
+}
+
+// Helper to calculate difference in days
+function getDaysDiff(d1: string, d2: string): number {
+  const t1 = new Date(d1).getTime();
+  const t2 = new Date(d2).getTime();
+  if (isNaN(t1) || isNaN(t2)) return 0;
+  return Math.ceil((t1 - t2) / (1000 * 60 * 60 * 24));
+}
+
+// Automatic subscription monitoring & status transitions
+function checkSubscriptions(db: ERPDataState): boolean {
+  if (!db.schools) db.schools = [];
+  if (!db.notifications) db.notifications = [];
+  if (!db.auditLogs) db.auditLogs = [];
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  let changed = false;
+
+  db.schools.forEach(school => {
+    // Fill in default values if they are missing
+    if (!school.gracePeriodDays) { school.gracePeriodDays = 7; changed = true; }
+    if (school.outstandingAmount === undefined) { school.outstandingAmount = 0; changed = true; }
+    if (!school.subscriptionStartDate) { school.subscriptionStartDate = '2025-07-01'; changed = true; }
+    if (school.autoRenewal === undefined) { school.autoRenewal = true; changed = true; }
+    if (!school.licenseDurationMonths) { school.licenseDurationMonths = 12; changed = true; }
+
+    const daysRemaining = getDaysDiff(school.licenseExpiry, todayStr);
+
+    // 1. Expiry Warnings (30, 15, 7, 3, 1 days)
+    const warningDays = [30, 15, 7, 3, 1];
+    if (daysRemaining > 0 && warningDays.includes(daysRemaining)) {
+      const notifId = `sub_warn_${school.id}_${daysRemaining}`;
+      const alreadyExists = db.notifications.some(n => n.id === notifId);
+      if (!alreadyExists) {
+        const message = `${school.name}'s ${school.subscription} subscription will expire in ${daysRemaining} day(s) on ${school.licenseExpiry}. Please renew in time.`;
+        db.notifications.unshift({
+          id: notifId,
+          schoolId: school.id,
+          title: `Subscription Expiring Soon: ${school.name}`,
+          message,
+          type: 'warning',
+          createdAt: new Date().toISOString(),
+          read: false,
+          category: 'system',
+          priority: 'high'
+        });
+        changed = true;
+      }
+    }
+
+    // 2. Expiry Status Transitions
+    if (daysRemaining <= 0) {
+      const overdueDays = Math.abs(daysRemaining);
+
+      if (school.status === 'Active') {
+        // Transition to Grace Period
+        school.status = 'Grace Period';
+        school.paymentStatus = 'Expired';
+        changed = true;
+
+        const actionLog: AuditLog = {
+          id: `audit_grace_${school.id}_${Date.now()}`,
+          adminName: 'System Scheduler',
+          dateTime: new Date().toISOString(),
+          action: 'Automatic Grace Period Entrance',
+          reason: `Subscription expired on ${school.licenseExpiry}. Grace period of ${school.gracePeriodDays} days started.`,
+          schoolName: school.name
+        };
+        db.auditLogs.unshift(actionLog);
+
+        db.notifications.unshift({
+          id: `notif_grace_${school.id}_${Date.now()}`,
+          schoolId: school.id,
+          title: `Subscription Expired - Grace Period Entered`,
+          message: `Your school's ERP subscription expired on ${school.licenseExpiry}. You have entered a ${school.gracePeriodDays}-day grace period. Please renew to avoid service suspension. Outstanding: ₹${school.outstandingAmount?.toLocaleString() || '0'}.`,
+          type: 'warning',
+          createdAt: new Date().toISOString(),
+          read: false,
+          category: 'system',
+          priority: 'high'
+        });
+      } else if (school.status === 'Grace Period') {
+        // Transition to Suspended after grace period ends
+        if (overdueDays > (school.gracePeriodDays || 7)) {
+          school.status = 'Suspended';
+          school.paymentStatus = 'Overdue';
+          changed = true;
+
+          const actionLog: AuditLog = {
+            id: `audit_auto_susp_${school.id}_${Date.now()}`,
+            adminName: 'System Scheduler',
+            dateTime: new Date().toISOString(),
+            action: 'Automatic Suspension',
+            reason: `Grace period of ${school.gracePeriodDays} days ended. Subscription expired on ${school.licenseExpiry}.`,
+            schoolName: school.name
+          };
+          db.auditLogs.unshift(actionLog);
+
+          db.notifications.unshift({
+            id: `notif_susp_${school.id}_${Date.now()}`,
+            schoolId: school.id,
+            title: `ERP Access Suspended`,
+            message: `Your school's ERP access has been suspended due to non-payment after the grace period ended. Contact support for reactivation.`,
+            type: 'danger',
+            createdAt: new Date().toISOString(),
+            read: false,
+            category: 'system',
+            priority: 'high'
+          });
+        }
+      }
+    }
+  });
+
+  return changed;
 }
 
 // Read database and return object
@@ -425,7 +840,14 @@ function getDB(): ERPDataState {
   }
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf8');
-    return JSON.parse(raw);
+    const db = JSON.parse(raw);
+    
+    // Automatically check subscriptions on state loading
+    if (checkSubscriptions(db)) {
+      saveDB(db);
+    }
+    
+    return db;
   } catch (error) {
     console.error('Failed to parse db.json, generating new seed dataset:', error);
     const data = seedInitialData();
@@ -448,7 +870,24 @@ function saveDB(state: ERPDataState) {
 // Get entire ERP state
 app.get('/api/state', (req, res) => {
   const db = getDB();
-  res.json(db);
+  const schoolId = req.query.schoolId as string;
+  
+  if (schoolId) {
+    // Return filtered isolated state for this school
+    res.json({
+      schools: db.schools || [],
+      principals: db.principals || [],
+      teachers: (db.teachers || []).filter(t => t.schoolId === schoolId),
+      attendance: (db.attendance || []).filter(a => a.schoolId === schoolId),
+      extraClassRequests: (db.extraClassRequests || []).filter(r => r.schoolId === schoolId),
+      substituteAssignments: (db.substituteAssignments || []).filter(a => a.schoolId === schoolId),
+      notifications: (db.notifications || []).filter(n => n.schoolId === schoolId),
+      leaveRequests: (db.leaveRequests || []).filter(l => l.schoolId === schoolId)
+    });
+  } else {
+    // Return full state for super admin
+    res.json(db);
+  }
 });
 
 // Reset database to initial state
@@ -1107,36 +1546,606 @@ app.post('/api/login', (req, res) => {
     return res.status(400).json({ error: 'Missing email or password' });
   }
 
-  // Pre-seed admin credentials check
-  if (role === 'admin' && email === 'admin@xyz.edu' && password === 'admin123') {
-    return res.json({
-      session: {
-        userId: 'admin_sys',
-        name: 'Principal Office',
-        email: 'admin@xyz.edu',
-        role: 'admin'
-      }
-    });
-  }
-
-  // If role is teacher, cross-verify teacher emails from database
   const db = getDB();
-  const teacher = db.teachers.find(
-    t => t.email.toLowerCase() === email.toLowerCase() && password === 'teach123'
-  );
 
-  if (role === 'teacher' && teacher) {
+  // 1. Super Admin Role Authentication
+  if ((role === 'superadmin' || email === 'superadmin@erp.com') && email === 'superadmin@erp.com' && password === 'super123') {
     return res.json({
       session: {
-        userId: teacher.id,
-        name: teacher.name,
-        email: teacher.email,
-        role: 'teacher'
+        userId: 'superadmin_sys',
+        name: 'Global Super Admin',
+        email: 'superadmin@erp.com',
+        role: 'superadmin'
       }
     });
   }
 
-  return res.status(401).json({ error: 'Invalid school credentials or role combination. Use admin@xyz.edu / admin123 OR any teacher email (e.g., aaravsharma@xyz.edu) with password teach123.' });
+  // 2. Principal Role Authentication
+  if (role === 'principal' || role === 'admin') {
+    // Backward compatibility check for default principal
+    if (email === 'admin@xyz.edu' && password === 'admin123') {
+      return res.json({
+        session: {
+          userId: 'p_xyz',
+          name: 'Dr. Rajesh Sharma',
+          email: 'admin@xyz.edu',
+          role: 'principal',
+          schoolId: 's_xyz'
+        }
+      });
+    }
+
+    // Dynamic search across principals list
+    const foundPrincipal = (db.principals || []).find(
+      p => p.email.toLowerCase() === email.toLowerCase() && password === 'admin123'
+    );
+
+    if (foundPrincipal) {
+      if (foundPrincipal.status === 'Suspended') {
+        return res.status(403).json({ error: 'Access denied. Your principal administrator account is suspended.' });
+      }
+
+      return res.json({
+        session: {
+          userId: foundPrincipal.id,
+          name: foundPrincipal.name,
+          email: foundPrincipal.email,
+          role: 'principal',
+          schoolId: foundPrincipal.schoolId
+        }
+      });
+    }
+  }
+
+  // 3. Teacher Role Authentication
+  if (role === 'teacher') {
+    const teacher = db.teachers.find(
+      t => t.email.toLowerCase() === email.toLowerCase() && password === 'teach123'
+    );
+
+    if (teacher) {
+      if (teacher.status === 'Suspended') {
+        return res.status(403).json({ error: 'Access denied. Your teacher account has been suspended.' });
+      }
+
+      return res.json({
+        session: {
+          userId: teacher.id,
+          name: teacher.name,
+          email: teacher.email,
+          role: 'teacher',
+          schoolId: teacher.schoolId || 's_xyz'
+        }
+      });
+    }
+  }
+
+  return res.status(401).json({ 
+    error: 'Invalid login credentials or role. For Super Admin use superadmin@erp.com/super123. For School Principal use admin@xyz.edu/admin123 or principal@abc.edu/admin123.' 
+  });
+});
+
+// ---------------------- SUPER ADMIN API SUITE ----------------------
+
+// School Management endpoints
+app.post('/api/schools', (req, res) => {
+  const db = getDB();
+  const {
+    name,
+    code,
+    email,
+    phone,
+    address,
+    city,
+    state,
+    country,
+    principalName,
+    principalEmail,
+    principalMobile,
+    board,
+    academicSession,
+    logo,
+    subscription,
+    licenseExpiry,
+    paymentStatus
+  } = req.body;
+
+  if (!name || !code || !email || !principalEmail) {
+    return res.status(400).json({ error: 'Missing required school properties (Name, Code, Email, Principal Email)' });
+  }
+
+  // Check code uniqueness
+  const existingSchool = (db.schools || []).find(s => s.code.toLowerCase() === code.toLowerCase());
+  if (existingSchool) {
+    return res.status(400).json({ error: `School Code "${code}" is already in use by another school.` });
+  }
+
+  const schoolId = `s_${code.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`;
+
+  const newSchool: School = {
+    id: schoolId,
+    name,
+    code: code.toUpperCase(),
+    logo: logo || '',
+    address: address || '',
+    city: city || 'New Delhi',
+    state: state || 'Delhi',
+    country: country || 'India',
+    phone: phone || '',
+    email,
+    principal: principalName || 'Principal Administrator',
+    principalEmail,
+    board: board || 'CBSE',
+    academicYear: academicSession || '2026-2027',
+    status: 'Active',
+    subscription: subscription || 'Trial',
+    licenseExpiry: licenseExpiry || '2027-07-01',
+    renewals: 0,
+    paymentStatus: paymentStatus || 'Pending',
+    storageUsage: 0.1
+  };
+
+  if (!db.schools) db.schools = [];
+  db.schools.push(newSchool);
+
+  // Automatically create principal account
+  const newPrincipal: Principal = {
+    id: `p_${Date.now()}`,
+    name: principalName || 'Principal Administrator',
+    email: principalEmail,
+    phone: principalMobile || phone || '',
+    schoolId,
+    status: 'Active'
+  };
+
+  if (!db.principals) db.principals = [];
+  db.principals.push(newPrincipal);
+
+  // Automatically seed ERP workspace with standard teachers
+  const seededSubjects = ['Mathematics', 'Science (Physics)', 'English Literature', 'Art & Design'];
+  const seededTeacherNames = [
+    `${principalName || 'Adviser'} Math Faculty`,
+    'Vikram Sharma',
+    'Neha Iyer',
+    'Arjun Patel'
+  ];
+
+  const seededTeachers: Teacher[] = seededSubjects.map((sub, i) => ({
+    id: `t_${schoolId}_${i + 1}`,
+    schoolId,
+    name: seededTeacherNames[i],
+    email: `faculty${i + 1}@${email.split('@')[1] || 'school.edu'}`,
+    phone: phone || '+91 99000 00000',
+    subject: sub,
+    classSection: 'Grade 10-A',
+    status: 'Active',
+    schedule: {
+      Monday: Array(6).fill(null),
+      Tuesday: Array(6).fill(null),
+      Wednesday: Array(6).fill(null),
+      Thursday: Array(6).fill(null),
+      Friday: Array(6).fill(null)
+    }
+  }));
+
+  // Assign basic schedules to seed teachers
+  seededTeachers.forEach((t, i) => {
+    t.schedule.Monday[i % 6] = {
+      subject: t.subject,
+      classSection: 'Grade 10-A',
+      room: `Room ${101 + i}`
+    };
+    t.schedule.Wednesday[(i + 2) % 6] = {
+      subject: t.subject,
+      classSection: 'Grade 10-A',
+      room: `Room ${101 + i}`
+    };
+  });
+
+  db.teachers.push(...seededTeachers);
+
+  // Seed sample student notification
+  db.notifications.unshift({
+    id: `not_sys_${schoolId}_welcome`,
+    schoolId,
+    title: 'School ERP Workspace Ready',
+    message: `Welcome to ${name}! Your isolated school database workspace, registers, and principal roles have been initialized.`,
+    type: 'success',
+    createdAt: new Date().toISOString(),
+    read: false,
+    category: 'system'
+  });
+
+  saveDB(db);
+  res.status(201).json({ school: newSchool, principal: newPrincipal, state: db });
+});
+
+app.put('/api/schools/:id', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  const sIndex = db.schools?.findIndex(s => s.id === id);
+  if (sIndex === undefined || sIndex === -1) {
+    return res.status(404).json({ error: 'School not found' });
+  }
+
+  db.schools![sIndex] = {
+    ...db.schools![sIndex],
+    ...req.body
+  };
+
+  // Sync Principal name/email if updated
+  const principal = db.principals?.find(p => p.schoolId === id);
+  if (principal) {
+    if (req.body.principal) principal.name = req.body.principal;
+    if (req.body.principalEmail) principal.email = req.body.principalEmail;
+  }
+
+  saveDB(db);
+  res.json({ school: db.schools![sIndex], state: db });
+});
+
+app.delete('/api/schools/:id', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+
+  if (db.schools) {
+    db.schools = db.schools.filter(s => s.id !== id);
+  }
+  if (db.principals) {
+    db.principals = db.principals.filter(p => p.schoolId !== id);
+  }
+
+  // Clean all isolated tenant data associated with this school ID
+  db.teachers = db.teachers.filter(t => t.schoolId !== id);
+  db.attendance = db.attendance.filter(a => a.schoolId !== id);
+  db.leaveRequests = db.leaveRequests.filter(l => l.schoolId !== id);
+  db.notifications = db.notifications.filter(n => n.schoolId !== id);
+  db.extraClassRequests = db.extraClassRequests.filter(e => e.schoolId !== id);
+  db.substituteAssignments = db.substituteAssignments.filter(s => s.schoolId !== id);
+
+  saveDB(db);
+  res.json({ message: 'School and all associated tenant data deleted successfully', state: db });
+});
+
+// --- SUBSCRIPTION & SCHOOL ACCESS MANAGEMENT ENDPOINTS ---
+
+// 1. Activate / Reactivate School
+app.post('/api/schools/:id/activate', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  const { reason, adminName } = req.body;
+  const school = db.schools?.find(s => s.id === id);
+  if (!school) return res.status(404).json({ error: 'School not found' });
+
+  const previousStatus = school.status;
+  school.status = 'Active';
+  school.paymentStatus = 'Paid';
+  school.outstandingAmount = 0;
+
+  // Extend license if it was expired
+  const todayStr = new Date().toISOString().split('T')[0];
+  const daysDiff = getDaysDiff(school.licenseExpiry, todayStr);
+  if (daysDiff <= 0) {
+    // Extend for 1 month by default on activation
+    const currentExpiry = new Date();
+    currentExpiry.setMonth(currentExpiry.getMonth() + 1);
+    school.licenseExpiry = currentExpiry.toISOString().split('T')[0];
+  }
+
+  // Record audit log
+  const log: AuditLog = {
+    id: `audit_${Date.now()}`,
+    adminName: adminName || 'Global Super Admin',
+    dateTime: new Date().toISOString(),
+    action: previousStatus === 'Suspended' ? 'School Reactivated' : 'School Activated',
+    reason: reason || 'Manual activation & payment received.',
+    schoolName: school.name
+  };
+  if (!db.auditLogs) db.auditLogs = [];
+  db.auditLogs.unshift(log);
+
+  saveDB(db);
+  res.json({ school, state: db });
+});
+
+// 2. Suspend School
+app.post('/api/schools/:id/suspend', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  const { reason, adminName } = req.body;
+  const school = db.schools?.find(s => s.id === id);
+  if (!school) return res.status(404).json({ error: 'School not found' });
+
+  school.status = 'Suspended';
+  school.paymentStatus = 'Overdue';
+
+  // Record audit log
+  const log: AuditLog = {
+    id: `audit_${Date.now()}`,
+    adminName: adminName || 'Global Super Admin',
+    dateTime: new Date().toISOString(),
+    action: 'School Suspended',
+    reason: reason || 'Manual suspension due to pending invoices.',
+    schoolName: school.name
+  };
+  if (!db.auditLogs) db.auditLogs = [];
+  db.auditLogs.unshift(log);
+
+  saveDB(db);
+  res.json({ school, state: db });
+});
+
+// 3. Disable School
+app.post('/api/schools/:id/disable', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  const { reason, adminName } = req.body;
+  const school = db.schools?.find(s => s.id === id);
+  if (!school) return res.status(404).json({ error: 'School not found' });
+
+  school.status = 'Disabled';
+
+  // Record audit log
+  const log: AuditLog = {
+    id: `audit_${Date.now()}`,
+    adminName: adminName || 'Global Super Admin',
+    dateTime: new Date().toISOString(),
+    action: 'School Disabled',
+    reason: reason || 'Manual disabling for administrative reasons/policy violations.',
+    schoolName: school.name
+  };
+  if (!db.auditLogs) db.auditLogs = [];
+  db.auditLogs.unshift(log);
+
+  saveDB(db);
+  res.json({ school, state: db });
+});
+
+// 4. Reactivate School
+app.post('/api/schools/:id/reactivate', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  const { reason, adminName } = req.body;
+  const school = db.schools?.find(s => s.id === id);
+  if (!school) return res.status(404).json({ error: 'School not found' });
+
+  school.status = 'Active';
+
+  // Record audit log
+  const log: AuditLog = {
+    id: `audit_${Date.now()}`,
+    adminName: adminName || 'Global Super Admin',
+    dateTime: new Date().toISOString(),
+    action: 'School Reactivated',
+    reason: reason || 'Manual reactivation by Super Admin.',
+    schoolName: school.name
+  };
+  if (!db.auditLogs) db.auditLogs = [];
+  db.auditLogs.unshift(log);
+
+  saveDB(db);
+  res.json({ school, state: db });
+});
+
+// 5. Extend Subscription
+app.post('/api/schools/:id/extend', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  const { days, reason, adminName } = req.body;
+  const school = db.schools?.find(s => s.id === id);
+  if (!school) return res.status(404).json({ error: 'School not found' });
+
+  const extendDays = parseInt(days) || 30;
+  const currentExpiry = new Date(school.licenseExpiry);
+  currentExpiry.setDate(currentExpiry.getDate() + extendDays);
+  school.licenseExpiry = currentExpiry.toISOString().split('T')[0];
+
+  // If the school was suspended or in grace period, extend makes them active
+  if (school.status === 'Suspended' || school.status === 'Grace Period') {
+    school.status = 'Active';
+    school.paymentStatus = 'Paid';
+  }
+
+  // Record audit log
+  const log: AuditLog = {
+    id: `audit_${Date.now()}`,
+    adminName: adminName || 'Global Super Admin',
+    dateTime: new Date().toISOString(),
+    action: 'Subscription Extended',
+    reason: `${reason || 'Extension granted'}. Extended expiry to ${school.licenseExpiry} (${extendDays} days).`,
+    schoolName: school.name
+  };
+  if (!db.auditLogs) db.auditLogs = [];
+  db.auditLogs.unshift(log);
+
+  saveDB(db);
+  res.json({ school, state: db });
+});
+
+// 6. Renew Subscription
+app.post('/api/schools/:id/renew', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  const { plan, durationMonths, outstandingAmount, reason, adminName } = req.body;
+  const school = db.schools?.find(s => s.id === id);
+  if (!school) return res.status(404).json({ error: 'School not found' });
+
+  const months = parseInt(durationMonths) || 12;
+  school.subscription = plan || school.subscription;
+  school.licenseDurationMonths = months;
+  school.outstandingAmount = parseFloat(outstandingAmount) || 0;
+  school.paymentStatus = 'Paid';
+  school.status = 'Active';
+  school.renewals = (school.renewals || 0) + 1;
+  school.lastPaymentDate = new Date().toISOString().split('T')[0];
+  
+  // Calculate expiry
+  const expiryDate = new Date();
+  expiryDate.setMonth(expiryDate.getMonth() + months);
+  school.licenseExpiry = expiryDate.toISOString().split('T')[0];
+  school.nextBillingDate = school.licenseExpiry;
+
+  // Record audit log
+  const log: AuditLog = {
+    id: `audit_${Date.now()}`,
+    adminName: adminName || 'Global Super Admin',
+    dateTime: new Date().toISOString(),
+    action: 'Payment Received & Renewed',
+    reason: `Renewed plan to ${school.subscription} for ${months} months. New expiry: ${school.licenseExpiry}. Outstanding amount of ₹${outstandingAmount || 0} resolved. ${reason || ''}`,
+    schoolName: school.name
+  };
+  if (!db.auditLogs) db.auditLogs = [];
+  db.auditLogs.unshift(log);
+
+  saveDB(db);
+  res.json({ school, state: db });
+});
+
+// 7. Change Subscription Plan
+app.post('/api/schools/:id/change-plan', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  const { plan, reason, adminName } = req.body;
+  const school = db.schools?.find(s => s.id === id);
+  if (!school) return res.status(404).json({ error: 'School not found' });
+
+  const oldPlan = school.subscription;
+  school.subscription = plan;
+
+  // Record audit log
+  const log: AuditLog = {
+    id: `audit_${Date.now()}`,
+    adminName: adminName || 'Global Super Admin',
+    dateTime: new Date().toISOString(),
+    action: 'Plan Changed',
+    reason: `Plan transitioned from ${oldPlan} to ${plan}. Reason: ${reason || 'Customer upgrade/downgrade request.'}`,
+    schoolName: school.name
+  };
+  if (!db.auditLogs) db.auditLogs = [];
+  db.auditLogs.unshift(log);
+
+  saveDB(db);
+  res.json({ school, state: db });
+});
+
+// 8. Edit Billing Profile
+app.post('/api/schools/:id/edit-billing', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  const { gracePeriodDays, autoRenewal, licenseDurationMonths, outstandingAmount, paymentStatus, reason, adminName } = req.body;
+  const school = db.schools?.find(s => s.id === id);
+  if (!school) return res.status(404).json({ error: 'School not found' });
+
+  if (gracePeriodDays !== undefined) school.gracePeriodDays = parseInt(gracePeriodDays);
+  if (autoRenewal !== undefined) school.autoRenewal = autoRenewal === true || autoRenewal === 'true';
+  if (licenseDurationMonths !== undefined) school.licenseDurationMonths = parseInt(licenseDurationMonths);
+  if (outstandingAmount !== undefined) school.outstandingAmount = parseFloat(outstandingAmount);
+  if (paymentStatus !== undefined) school.paymentStatus = paymentStatus;
+
+  // Record audit log
+  const log: AuditLog = {
+    id: `audit_${Date.now()}`,
+    adminName: adminName || 'Global Super Admin',
+    dateTime: new Date().toISOString(),
+    action: 'Billing Profile Updated',
+    reason: reason || 'Super Admin adjusted billing specifications and grace boundaries.',
+    schoolName: school.name
+  };
+  if (!db.auditLogs) db.auditLogs = [];
+  db.auditLogs.unshift(log);
+
+  saveDB(db);
+  res.json({ school, state: db });
+});
+
+// 9. Fetch Audit Logs
+app.get('/api/audit-logs', (req, res) => {
+  const db = getDB();
+  res.json(db.auditLogs || []);
+});
+
+// --- PRINCIPAL MANAGEMENT ENDPOINTS ---
+app.post('/api/principals', (req, res) => {
+  const db = getDB();
+  const { name, email, phone, schoolId, status } = req.body;
+
+  if (!name || !email || !schoolId) {
+    return res.status(400).json({ error: 'Missing name, email, or school ID' });
+  }
+
+  // Check unique email across principals
+  const existingPrincipal = (db.principals || []).find(p => p.email.toLowerCase() === email.toLowerCase());
+  if (existingPrincipal) {
+    return res.status(400).json({ error: `Principal with email "${email}" already exists.` });
+  }
+
+  const newPrincipal: Principal = {
+    id: `p_${Date.now()}`,
+    name,
+    email,
+    phone: phone || '',
+    schoolId,
+    status: status || 'Active'
+  };
+
+  if (!db.principals) db.principals = [];
+  db.principals.push(newPrincipal);
+
+  // Sync school table principal name and email
+  const school = db.schools?.find(s => s.id === schoolId);
+  if (school) {
+    school.principal = name;
+    school.principalEmail = email;
+  }
+
+  saveDB(db);
+  res.status(201).json({ principal: newPrincipal, state: db });
+});
+
+app.put('/api/principals/:id', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  const pIndex = db.principals?.findIndex(p => p.id === id);
+  if (pIndex === undefined || pIndex === -1) {
+    return res.status(404).json({ error: 'Principal not found' });
+  }
+
+  db.principals![pIndex] = {
+    ...db.principals![pIndex],
+    ...req.body
+  };
+
+  // Sync associated school principal name and email
+  const schoolId = db.principals![pIndex].schoolId;
+  const school = db.schools?.find(s => s.id === schoolId);
+  if (school) {
+    school.principal = db.principals![pIndex].name;
+    school.principalEmail = db.principals![pIndex].email;
+  }
+
+  saveDB(db);
+  res.json({ principal: db.principals![pIndex], state: db });
+});
+
+app.delete('/api/principals/:id', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+
+  if (db.principals) {
+    const toDelete = db.principals.find(p => p.id === id);
+    if (toDelete) {
+      // Set principal to empty on school
+      const school = db.schools?.find(s => s.id === toDelete.schoolId);
+      if (school) {
+        school.principal = '';
+        school.principalEmail = '';
+      }
+    }
+    db.principals = db.principals.filter(p => p.id !== id);
+  }
+
+  saveDB(db);
+  res.json({ message: 'Principal account deleted successfully', state: db });
 });
 
 // Single point start function to support Express + Vite Middleware for Dev and production bundling
