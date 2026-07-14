@@ -555,6 +555,170 @@ app.post('/api/schedule/set-slot', (req, res) => {
   res.json({ success: true, state });
 });
 
+// 4a. Class Timetable Bulk Import
+app.post('/api/schedule/import-timetable-data', (req, res) => {
+  const state = loadState();
+  const { classSection, slots } = req.body;
+
+  if (!classSection) {
+    return res.status(400).json({ error: 'Please supply a classSection name.' });
+  }
+
+  // 1. Clear previous slots for this classSection across all teachers
+  state.teachers.forEach(teacher => {
+    Object.keys(teacher.schedule).forEach(day => {
+      const dayName = day as DayOfWeek;
+      if (teacher.schedule[dayName]) {
+        teacher.schedule[dayName].forEach((slot, idx) => {
+          if (slot && slot.classSection === classSection) {
+            teacher.schedule[dayName][idx] = null;
+          }
+        });
+      }
+    });
+  });
+
+  // 2. Assign the new slots
+  let assignedCount = 0;
+  if (Array.isArray(slots)) {
+    slots.forEach(slot => {
+      const teacher = state.teachers.find(t => t.id === slot.teacherId);
+      if (teacher) {
+        const day = slot.day as DayOfWeek;
+        // Ensure day array exists and has length 8
+        if (!teacher.schedule[day]) {
+          teacher.schedule[day] = Array(8).fill(null);
+        }
+        if (teacher.schedule[day].length < 8) {
+          const extension = Array(8 - teacher.schedule[day].length).fill(null);
+          teacher.schedule[day] = [...teacher.schedule[day], ...extension];
+        }
+
+        teacher.schedule[day][slot.periodIndex] = {
+          subject: slot.subject,
+          classSection: classSection,
+          room: slot.room
+        };
+        assignedCount++;
+      }
+    });
+  }
+
+  // Log Notification
+  state.notifications.unshift({
+    id: `n_sys_import_${Date.now()}`,
+    title: `Timetable Imported: ${classSection}`,
+    message: `Uploaded new academic schedule for ${classSection} containing ${assignedCount} periods.`,
+    type: 'success',
+    createdAt: new Date().toISOString(),
+    read: false,
+    category: 'system'
+  });
+
+  saveState(state);
+  res.json({ success: true, state });
+});
+
+// 4b. Teacher Profiles Bulk Import
+app.post('/api/teachers/import-bulk', (req, res) => {
+  const state = loadState();
+  const { teachers } = req.body;
+
+  if (!Array.isArray(teachers) || teachers.length === 0) {
+    return res.status(400).json({ error: 'Supply an array of teacher profiles to import.' });
+  }
+
+  let importedCount = 0;
+  let updatedCount = 0;
+
+  teachers.forEach(row => {
+    const email = String(row.Email || row.email || '').trim().toLowerCase();
+    const name = String(row.TeacherName || row.name || '').trim();
+    if (!name || !email) return;
+
+    // Split subjects
+    const subjectsRaw = String(row.Subjects || row.subjects || row.subject || '');
+    const subjects = subjectsRaw ? subjectsRaw.split(',').map(s => s.trim()) : [];
+    const primarySubject = subjects[0] || 'Mathematics';
+
+    const phone = String(row.Phone || row.phone || `+91 ${Math.floor(8000000000 + Math.random() * 2000000000)}`);
+    const homeClass = String(row.HomeClass || row.classSection || 'Grade 10-A');
+    const employeeId = String(row.EmployeeID || row.employeeId || `EMP${Date.now()}_${Math.floor(Math.random() * 100)}`);
+    const department = String(row.Department || row.department || 'Science');
+    const designation = String(row.Designation || row.designation || 'Teacher');
+    const qualification = String(row.Qualification || row.qualification || 'B.Ed.');
+    const experience = row.Experience !== undefined ? row.Experience : 3;
+    const maxDailyHours = row.MaxDailyHours !== undefined ? parseInt(row.MaxDailyHours, 10) : 6;
+    const maxWeeklyHours = row.MaxWeeklyHours !== undefined ? parseInt(row.MaxWeeklyHours, 10) : 30;
+
+    const existingIdx = state.teachers.findIndex(t => t.email.toLowerCase() === email);
+    if (existingIdx !== -1) {
+      // Update existing
+      state.teachers[existingIdx] = {
+        ...state.teachers[existingIdx],
+        name,
+        phone,
+        subject: primarySubject,
+        classSection: homeClass,
+        employeeId,
+        department,
+        designation,
+        qualification,
+        experience,
+        subjects,
+        maxDailyHours,
+        maxWeeklyHours
+      };
+      updatedCount++;
+    } else {
+      // Create new with blank 8-period schedule
+      const initialSchedule: any = {
+        Monday: Array(8).fill(null),
+        Tuesday: Array(8).fill(null),
+        Wednesday: Array(8).fill(null),
+        Thursday: Array(8).fill(null),
+        Friday: Array(8).fill(null),
+        Saturday: Array(8).fill(null)
+      };
+
+      state.teachers.push({
+        id: `t_${Date.now()}_${Math.floor(Math.random()*1000)}`,
+        name,
+        email,
+        phone,
+        subject: primarySubject,
+        classSection: homeClass,
+        status: 'Active',
+        schedule: initialSchedule,
+        employeeId,
+        department,
+        designation,
+        qualification,
+        experience,
+        subjects,
+        classesAssigned: [homeClass],
+        sectionsAssigned: [homeClass.split('-')[1] || 'A'],
+        maxDailyHours,
+        maxWeeklyHours
+      });
+      importedCount++;
+    }
+  });
+
+  state.notifications.unshift({
+    id: `n_sys_teachers_${Date.now()}`,
+    title: 'Faculty Registry Imported',
+    message: `Successfully bulk-processed ${importedCount + updatedCount} teacher profiles (${importedCount} new, ${updatedCount} updated).`,
+    type: 'success',
+    createdAt: new Date().toISOString(),
+    read: false,
+    category: 'system'
+  });
+
+  saveState(state);
+  res.json({ success: true, state });
+});
+
 // Extra Class Bookings
 app.post('/api/extra-classes/request', (req, res) => {
   const state = loadState();
@@ -713,23 +877,33 @@ app.get('/api/substitutes/suggest', (req, res) => {
   });
 
   // Calculate recommendation scores
+  const targetSlot = absentTeacher.schedule[dayName]?.[pIdx];
+  const targetSubject = targetSlot ? targetSlot.subject : absentTeacher.subject;
+
   const suggestions = candidates.map(t => {
     let score = 50; // baseline
 
     // 1. Subject Category compatibility
-    const sameSubject = t.subject.toLowerCase() === absentTeacher.subject.toLowerCase();
+    const teacherSubjects = t.subjects || [t.subject];
+    const sameSubject = teacherSubjects.some(sub => sub.toLowerCase() === targetSubject.toLowerCase());
+    
     if (sameSubject) {
-      score += 30;
+      score += 40; // High priority for exact certified subject match
     } else {
-      // similar department (e.g. Science / Physics / Chemistry / Biology)
-      const depts = [
-        ['mathematics', 'computer science'],
-        ['physics', 'chemistry', 'biology', 'science (physics)'],
-        ['english literature', 'english grammar', 'french language'],
-        ['history & civics', 'geography', 'economics & commerce']
-      ];
-      const sameDept = depts.some(d => d.includes(t.subject.toLowerCase()) && d.includes(absentTeacher.subject.toLowerCase()));
-      if (sameDept) score += 15;
+      // similar department (check field or heuristic grouping)
+      const sameDeptField = t.department && absentTeacher.department && t.department.toLowerCase() === absentTeacher.department.toLowerCase();
+      if (sameDeptField) {
+        score += 20;
+      } else {
+        const depts = [
+          ['mathematics', 'computer science'],
+          ['physics', 'chemistry', 'biology', 'science (physics)', 'science'],
+          ['english literature', 'english grammar', 'french language', 'languages'],
+          ['history & civics', 'geography', 'economics & commerce', 'social sciences']
+        ];
+        const sameDeptGroup = depts.some(d => d.includes(t.subject.toLowerCase()) && d.includes(targetSubject.toLowerCase()));
+        if (sameDeptGroup) score += 15;
+      }
     }
 
     // 2. Count today's total active (busy) classes to protect teacher from over-work
@@ -737,12 +911,29 @@ app.get('/api/substitutes/suggest', (req, res) => {
     t.schedule[dayName]?.forEach(slot => { if (slot) busyCount++; });
     score -= (busyCount * 5); // penalty for busy day today
 
+    // Workload limit guardrails
+    const maxDaily = t.maxDailyHours || 6;
+    if (busyCount >= maxDaily) {
+      score -= 30; // Strong penalty if already at daily limit
+    }
+
     // 3. Count weekly workload (total periods)
     let weeklyWorkload = 0;
     Object.values(t.schedule).forEach(daySched => {
       daySched.forEach(slot => { if (slot) weeklyWorkload++; });
     });
     score -= (weeklyWorkload * 1); // slight penalty for heavy weekly load
+
+    const maxWeekly = t.maxWeeklyHours || 30;
+    if (weeklyWorkload >= maxWeekly) {
+      score -= 25; // Strong penalty if at weekly limit
+    }
+
+    // Preferred Free Periods Check (if preferred free, penalize substitution slightly)
+    const isPreferredFree = t.preferredFreePeriods?.some(p => p.day === dayName && p.periodIndex === pIdx);
+    if (isPreferredFree) {
+      score -= 10;
+    }
 
     // 4. Balanced historical workload (substitute assignments)
     const historicalSubs = state.substituteAssignments.filter(sub => sub.substituteTeacherId === t.id).length;
@@ -752,6 +943,7 @@ app.get('/api/substitutes/suggest', (req, res) => {
       id: t.id,
       name: t.name,
       subject: t.subject,
+      subjects: teacherSubjects,
       classSection: t.classSection,
       busyCount,
       weeklyWorkload,

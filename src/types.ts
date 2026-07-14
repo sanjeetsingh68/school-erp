@@ -8,7 +8,7 @@ export interface TimetableSlot {
   originalTeacherName?: string;
 }
 
-export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday';
+export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
 
 export interface WeeklySchedule {
   Monday: (TimetableSlot | null)[]; // 6 slots representing Periods 1 to 6
@@ -16,6 +16,7 @@ export interface WeeklySchedule {
   Wednesday: (TimetableSlot | null)[];
   Thursday: (TimetableSlot | null)[];
   Friday: (TimetableSlot | null)[];
+  Saturday?: (TimetableSlot | null)[];
 }
 
 export interface Teacher {
@@ -27,6 +28,17 @@ export interface Teacher {
   classSection: string; // Default class assigned (e.g. "Grade 10-A")
   status: 'Active' | 'On Leave' | 'Suspended';
   schedule: WeeklySchedule;
+  employeeId?: string;
+  department?: string;
+  designation?: string;
+  qualification?: string;
+  experience?: string | number;
+  subjects?: string[];
+  classesAssigned?: string[];
+  sectionsAssigned?: string[];
+  maxDailyHours?: number;
+  maxWeeklyHours?: number;
+  preferredFreePeriods?: { day: DayOfWeek; periodIndex: number }[];
 }
 
 export interface AttendanceRecord {

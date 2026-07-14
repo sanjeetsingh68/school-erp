@@ -203,6 +203,30 @@ export default function App() {
     setToast({ message: 'Timetable slot updated.', type: 'success' });
   };
 
+  const handleImportTimetable = async (classSection: string, slots: any[]) => {
+    const resp = await fetch('/api/schedule/import-timetable-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classSection, slots })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed importing timetable');
+    setState(data.state);
+    setToast({ message: `Successfully imported timetable for ${classSection}!`, type: 'success' });
+  };
+
+  const handleBulkImportTeachers = async (teachersList: any[]) => {
+    const resp = await fetch('/api/teachers/import-bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teachers: teachersList })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed bulk importing teachers');
+    setState(data.state);
+    setToast({ message: `Successfully bulk imported ${teachersList.length} teacher profiles!`, type: 'success' });
+  };
+
   const handleScheduleExtraClass = async (payload: {
     teacherId: string;
     classSection: string;
@@ -551,6 +575,7 @@ export default function App() {
                   selectedDate={selectedDate}
                   onScheduleExtraClass={handleScheduleExtraClass}
                   onUpdateSlot={handleUpdateScheduleSlot}
+                  onImportTimetable={handleImportTimetable}
                   darkTheme={darkTheme}
                 />
               )}
@@ -561,6 +586,7 @@ export default function App() {
                   onAddTeacher={handleAddTeacher}
                   onUpdateTeacher={handleUpdateTeacher}
                   onDeleteTeacher={handleDeleteTeacher}
+                  onBulkImportTeachers={handleBulkImportTeachers}
                   darkTheme={darkTheme}
                 />
               )}

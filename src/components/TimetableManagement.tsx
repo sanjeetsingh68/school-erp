@@ -13,15 +13,26 @@ import {
   HelpCircle,
   Clock,
   Check,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  Download,
+  AlertTriangle
 } from 'lucide-react';
 import { Teacher, TimetableSlot, DayOfWeek, ExtraClassRequest } from '../types';
+import {
+  parseExcelFile,
+  processClassTimetable,
+  generateClassTemplateExcel,
+  ClassImportResult,
+  ImportPreviewSlot
+} from '../utils/excelParser';
 
 interface TimetableManagementProps {
   teachers: Teacher[];
   selectedDate: string; // YYYY-MM-DD
   onScheduleExtraClass: (req: { teacherId: string; classSection: string; date: string; periodIndex: number }) => Promise<any>;
   onUpdateSlot: (teacherId: string, day: DayOfWeek, periodIndex: number, slot: TimetableSlot | null) => Promise<any>;
+  onImportTimetable: (classSection: string, slots: any[]) => Promise<any>;
   darkTheme: boolean;
 }
 
@@ -35,6 +46,82 @@ export default function TimetableManagement({
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'teacher'>('daily');
   const [selectedTeacherId, setSelectedTeacherId] = useState(teachers[0]?.id || '');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
+
+  // Excel Import State
+  const [selectedImportYear, setSelectedImportYear] = useState('2026-2027');
+  const [selectedImportClass, setSelectedImportClass] = useState('');
+  const [selectedImportSection, setSelectedImportSection] = useState('');
+  const [importResult, setImportResult] = useState<ClassImportResult | null>(null);
+  const [importPreviewOpen, setImportPreviewOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const downloadClassTemplate = () => {
+    try {
+      const blob = generateClassTemplateExcel(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Class_Timetable_Template_${selectedImportClass || 'General'}_${selectedImportSection || 'A'}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  const handleFileUploadClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportError(null);
+    setIsUploading(true);
+
+    try {
+      const rows = await parseExcelFile(file);
+      const classSection = `${selectedImportClass}-${selectedImportSection}`;
+      const workingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']; // standard working days
+
+      const result = processClassTimetable(rows, teachers, classSection, workingDays);
+      setImportResult(result);
+      setImportPreviewOpen(true);
+    } catch (err: any) {
+      setImportError(err.message || 'Error processing Excel file. Check format.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importResult || importResult.errors.some(e => e.type === 'error')) return;
+
+    try {
+      setIsUploading(true);
+      const classSection = `${selectedImportClass}-${selectedImportSection}`;
+      
+      // format preview slots to match server expectations
+      await onImportTimetable(classSection, importResult.slots);
+      
+      setImportPreviewOpen(false);
+      setImportResult(null);
+      setSelectedImportClass('');
+      setSelectedImportSection('');
+    } catch (err: any) {
+      setImportError(err.message || 'Failed saving imported timetable.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   // Extra Class Form State
   const [isExtraModalOpen, setIsExtraModalOpen] = useState(false);
@@ -56,14 +143,16 @@ export default function TimetableManagement({
   const [editRoom, setEditRoom] = useState('Room 101');
   const [editError, setEditError] = useState<string | null>(null);
 
-  const daysOrder: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const daysOrder: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const timings = [
     '08:30 AM - 09:20 AM',
     '09:20 AM - 10:10 AM',
     '10:30 AM - 11:20 AM',
     '11:20 AM - 12:10 PM',
     '01:00 PM - 01:50 PM',
-    '01:50 PM - 02:40 PM'
+    '01:50 PM - 02:40 PM',
+    '02:40 PM - 03:30 PM',
+    '03:30 PM - 04:20 PM'
   ];
 
   const classList = [
@@ -206,6 +295,107 @@ export default function TimetableManagement({
             <Sparkles className="h-4 w-4" /> Book Extra Class (Conflict-Free)
           </button>
         </div>
+      </div>
+
+      {/* EXCEL TIMETABLE IMPORT & ASSIGNMENT PANEL */}
+      <div className={`p-5 rounded-2xl border ${
+        darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-xs'
+      }`}>
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div className="space-y-1">
+            <h3 className="font-bold text-sm tracking-tight flex items-center gap-1.5">
+              <CalendarRange className="h-4 w-4 text-blue-600" />
+              Spreadsheet Timetable Import & Intelligent Assignment
+            </h3>
+            <p className="text-xs text-slate-400">
+              Select academic year, class, and section to unlock bulk spreadsheet scheduling with instant validation.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+            {/* Academic Year */}
+            <div className="flex flex-col gap-1 w-full sm:w-auto min-w-[120px]">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">Academic Year</label>
+              <select
+                value={selectedImportYear}
+                onChange={(e) => setSelectedImportYear(e.target.value)}
+                className="px-3 py-1.5 border border-slate-200 text-xs font-semibold rounded-xl bg-white text-slate-700 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="2026-2027">2026-2027</option>
+                <option value="2027-2028">2027-2028</option>
+              </select>
+            </div>
+
+            {/* Class Selection */}
+            <div className="flex flex-col gap-1 w-full sm:w-auto min-w-[120px]">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">Class</label>
+              <select
+                value={selectedImportClass}
+                onChange={(e) => setSelectedImportClass(e.target.value)}
+                className="px-3 py-1.5 border border-slate-200 text-xs font-semibold rounded-xl bg-white text-slate-700 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Class</option>
+                <option value="Grade 9">Grade 9</option>
+                <option value="Grade 10">Grade 10</option>
+                <option value="Grade 11">Grade 11</option>
+                <option value="Grade 12">Grade 12</option>
+              </select>
+            </div>
+
+            {/* Section Selection */}
+            <div className="flex flex-col gap-1 w-full sm:w-auto min-w-[100px]">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">Section</label>
+              <select
+                value={selectedImportSection}
+                onChange={(e) => setSelectedImportSection(e.target.value)}
+                className="px-3 py-1.5 border border-slate-200 text-xs font-semibold rounded-xl bg-white text-slate-700 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Section</option>
+                <option value="A">Section A</option>
+                <option value="B">Section B</option>
+                <option value="C">Section C</option>
+                <option value="D">Section D</option>
+              </select>
+            </div>
+
+            {/* Upload & Template Buttons - Only visible if class and section are selected */}
+            {selectedImportClass && selectedImportSection && (
+              <div className="flex items-end gap-2 pt-4 sm:pt-0">
+                <button
+                  onClick={downloadClassTemplate}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border cursor-pointer flex items-center gap-1 ${
+                    darkTheme ? 'bg-slate-800 border-slate-700 hover:bg-slate-750' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-750'
+                  }`}
+                  title="Download template Excel file"
+                >
+                  <Download className="h-3.5 w-3.5" /> Download Template
+                </button>
+
+                <button
+                  onClick={handleFileUploadClick}
+                  disabled={isUploading}
+                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Upload className="h-3.5 w-3.5" /> {isUploading ? 'Uploading...' : '➕ Upload Timetable (.xlsx)'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {importError && (
+          <p className="text-xs text-red-600 font-bold bg-red-50 dark:bg-red-950/20 border border-red-150 dark:border-red-900/30 p-2.5 rounded-xl mt-3 flex items-center gap-1.5">
+            <AlertTriangle className="h-4 w-4 shrink-0" /> {importError}
+          </p>
+        )}
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept=".xlsx,.xls,.csv"
+          className="hidden"
+        />
       </div>
 
       {/* FILTER BUTTONS & VIEW CHOOSE */}
@@ -612,6 +802,156 @@ export default function TimetableManagement({
                   <span>{extraClassSuccess}</span>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SPREADSHEET TIMETABLE IMPORT PREVIEW MODAL */}
+      {importPreviewOpen && importResult && (
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4 backdrop-blur-xs overflow-y-auto">
+          <div className={`w-full max-w-4xl p-6 rounded-2xl shadow-2xl border transition-all my-8 ${
+            darkTheme ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-white border-slate-100 text-slate-800'
+          }`}>
+            <div className="flex justify-between items-center mb-4 border-b pb-3 dark:border-slate-800">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <CalendarRange className="h-5 w-5 text-blue-600" />
+                  Timetable Import Review: {selectedImportClass}-{selectedImportSection}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Review the parsed schedule and resolve warnings before confirming changes.
+                </p>
+              </div>
+              <button onClick={() => setImportPreviewOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+              {/* Statistics block */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-900">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Periods Parsed</p>
+                  <p className="text-lg font-bold text-blue-600 mt-1">{importResult.slots.length}</p>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-900">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Total Educators</p>
+                  <p className="text-lg font-bold mt-1">
+                    {new Set(importResult.slots.map(s => s.teacherId)).size}
+                  </p>
+                </div>
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-100 dark:border-red-900/30">
+                  <p className="text-[10px] font-bold text-red-500 uppercase">Errors</p>
+                  <p className="text-lg font-bold text-red-600 mt-1">
+                    {importResult.errors.filter(e => e.type === 'error').length}
+                  </p>
+                </div>
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                  <p className="text-[10px] font-bold text-amber-500 uppercase">Warnings</p>
+                  <p className="text-lg font-bold text-amber-600 mt-1">
+                    {importResult.errors.filter(e => e.type === 'warning').length}
+                  </p>
+                </div>
+              </div>
+
+              {/* Errors & Warnings List */}
+              {importResult.errors.length > 0 && (
+                <div className="space-y-2.5">
+                  <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Validation Issues:</h4>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto border border-slate-100 dark:border-slate-800 p-2 rounded-xl">
+                    {importResult.errors.map((err, i) => (
+                      <div
+                        key={i}
+                        className={`p-2 rounded-lg text-xs flex items-start gap-2 border ${
+                          err.type === 'error'
+                            ? 'bg-red-50 dark:bg-red-955/20 border-red-150 dark:border-red-900/30 text-red-700 dark:text-red-400'
+                            : 'bg-amber-50 dark:bg-amber-955/20 border-amber-150 dark:border-amber-900/30 text-amber-700 dark:text-amber-400'
+                        }`}
+                      >
+                        {err.type === 'error' ? (
+                          <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-500" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
+                        )}
+                        <div>
+                          <span className="font-bold">Row {err.row}: </span>
+                          <span>{err.message}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Timetable Preview Grid */}
+              <div className="space-y-2.5">
+                <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Weekly Class Timetable Preview:</h4>
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-150 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <th className="p-3 w-24">Day</th>
+                        {Array.from({ length: 8 }).map((_, i) => (
+                          <th key={i} className="p-3 text-center min-w-[100px]">Period {i + 1}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-150 dark:divide-slate-800">
+                      {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => (
+                        <tr key={day} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/50">
+                          <td className="p-3 font-bold text-xs text-slate-500 dark:text-slate-400">{day}</td>
+                          {Array.from({ length: 8 }).map((_, periodIdx) => {
+                            const slot = importResult.slots.find(
+                              s => s.day === day && s.periodIndex === periodIdx
+                            );
+                            const teacherObj = slot ? teachers.find(t => t.id === slot.teacherId) : null;
+                            return (
+                              <td key={periodIdx} className="p-2 text-center">
+                                {slot ? (
+                                  <div className="p-2 bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 rounded-xl space-y-0.5">
+                                    <p className="text-xs font-bold text-blue-700 dark:text-blue-400 leading-tight">
+                                      {slot.subject}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight truncate max-w-[120px] mx-auto">
+                                      {teacherObj?.name || 'Assigned Educator'}
+                                    </p>
+                                    <p className="text-[9px] text-slate-400 font-semibold uppercase">
+                                      {slot.room || 'No Room'}
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <div className="py-3 px-1 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-slate-300 dark:text-slate-700 text-[10px] font-semibold">
+                                    -
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t dark:border-slate-800 mt-5">
+              <button
+                type="button"
+                onClick={() => setImportPreviewOpen(false)}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmImport}
+                disabled={importResult.errors.some(e => e.type === 'error') || isUploading}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-xl font-bold text-xs shadow-lg cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="h-4 w-4" /> Confirm & Import Timetable
+              </button>
             </div>
           </div>
         </div>
