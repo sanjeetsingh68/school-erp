@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Teacher, DayOfWeek, TimetableSlot } from '../types';
+import { Teacher, DayOfWeek, TimetableSlot, ScheduleSlotConfig } from '../types';
 
 export interface ClassImportRow {
   Day: string;
@@ -100,7 +100,8 @@ export function processClassTimetable(
   rows: any[],
   teachers: Teacher[],
   classSection: string,
-  workingDays: string[]
+  workingDays: string[],
+  scheduleSlots?: ScheduleSlotConfig[]
 ): ClassImportResult {
   const errors: ImportError[] = [];
   const warnings: ImportError[] = [];
@@ -112,40 +113,24 @@ export function processClassTimetable(
     return { slots, errors, warnings, teacherSchedulesToUpdate };
   }
 
-  // Check if first row is Grid Format (has column keys like "Period 1" or contains "Day" and "Period 1")
-  const firstRowKeys = Object.keys(rows[0]);
-  const isGridFormat = firstRowKeys.some(k => k.toLowerCase().includes('period'));
+  // Create standard slots list if none provided
+  const slotsConfig = scheduleSlots && scheduleSlots.length > 0 ? scheduleSlots : Array(8).fill(null).map((_, i) => ({
+    id: `s${i+1}`,
+    name: `Period ${i+1}`,
+    type: 'teaching' as const,
+    start: '',
+    end: '',
+    requiresAssignment: true
+  }));
 
+  const firstRowKeys = Object.keys(rows[0]);
   const parsedEntries: { day: string; period: number; subject: string; teacherName: string; room: string; sourceRowIdx: number }[] = [];
 
-  if (isGridFormat) {
-    // Process Grid format: Days as rows, Period columns
-    rows.forEach((row, rowIdx) => {
-      const dayVal = String(row.Day || row.day || '').trim();
-      if (!dayVal) return;
+  const isListFormat = firstRowKeys.some(k => k.toLowerCase() === 'period');
 
-      // Extract values from Period columns (Period 1 to Period 8)
-      for (let pNum = 1; pNum <= 8; pNum++) {
-        const key = firstRowKeys.find(k => k.toLowerCase().replace(/\s+/g, '') === `period${pNum}`);
-        if (key && row[key]) {
-          const parsedCell = parseCellContent(String(row[key]));
-          if (parsedCell) {
-            parsedEntries.push({
-              day: dayVal,
-              period: pNum,
-              subject: parsedCell.subject,
-              teacherName: parsedCell.teacherName,
-              room: parsedCell.room,
-              sourceRowIdx: rowIdx + 2 // 1-indexed Excel row offset
-            });
-          }
-        }
-      }
-    });
-  } else {
+  if (isListFormat) {
     // Process list/row format: Day, Period, Subject, Teacher Name, Room
     rows.forEach((row, rowIdx) => {
-      // Find keys (case-insensitive)
       const keys = Object.keys(row);
       const dayKey = keys.find(k => k.toLowerCase() === 'day') || 'Day';
       const periodKey = keys.find(k => k.toLowerCase() === 'period') || 'Period';
@@ -168,6 +153,61 @@ export function processClassTimetable(
         teacherName: teacherVal,
         room: roomVal,
         sourceRowIdx: rowIdx + 2
+      });
+    });
+  } else {
+    // Process Grid format: Days as rows, Period/Slot columns
+    const keyToSlotIdx: { [key: string]: number } = {};
+    firstRowKeys.forEach(key => {
+      if (key.toLowerCase() === 'day' || key.toLowerCase() === 'weekday') return;
+
+      const cleanKey = key.replace(/\s*\(.*\)\s*/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      const foundIdx = slotsConfig.findIndex(s => {
+        const cleanSlotName = s.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cleanSlotName === cleanKey || cleanKey.includes(cleanSlotName) || cleanSlotName.includes(cleanKey);
+      });
+
+      if (foundIdx !== -1) {
+        keyToSlotIdx[key] = foundIdx;
+      }
+    });
+
+    // Fallback simple matching if clean string comparison yields zero results
+    if (Object.keys(keyToSlotIdx).length === 0) {
+      firstRowKeys.forEach(key => {
+        const numMatch = key.match(/\d+/);
+        if (numMatch) {
+          const pNum = parseInt(numMatch[0], 10);
+          if (pNum >= 1 && pNum <= slotsConfig.length) {
+            keyToSlotIdx[key] = pNum - 1;
+          }
+        }
+      });
+    }
+
+    rows.forEach((row, rowIdx) => {
+      const dayVal = String(row.Day || row.day || '').trim();
+      if (!dayVal) return;
+
+      firstRowKeys.forEach(key => {
+        const slotIdx = keyToSlotIdx[key];
+        if (slotIdx !== undefined && row[key]) {
+          const slotConf = slotsConfig[slotIdx];
+          if (slotConf.requiresAssignment) {
+            const parsedCell = parseCellContent(String(row[key]));
+            if (parsedCell) {
+              parsedEntries.push({
+                day: dayVal,
+                period: slotIdx + 1, // 1-indexed representation for internal validation
+                subject: parsedCell.subject,
+                teacherName: parsedCell.teacherName,
+                room: parsedCell.room,
+                sourceRowIdx: rowIdx + 2
+              });
+            }
+          }
+        }
       });
     });
   }
@@ -203,12 +243,12 @@ export function processClassTimetable(
       });
     }
 
-    // 3. Validate period index (1 to 8)
-    if (isNaN(period) || period < 1 || period > 8) {
+    // 3. Validate period index
+    if (isNaN(period) || period < 1 || period > slotsConfig.length) {
       errors.push({
         type: 'error',
         row: sourceRowIdx,
-        message: `Invalid Period value "${period}". Period must be between 1 and 8.`
+        message: `Invalid Period value "${period}". Period must be between 1 and ${slotsConfig.length}.`
       });
       return;
     }
@@ -357,17 +397,81 @@ export function processClassTimetable(
   return { slots, errors, warnings, teacherSchedulesToUpdate };
 }
 
-// Generate an Excel sheet as downloadable Blob
-export function generateClassTemplateExcel(workingDays: string[]): Blob {
-  // We will generate the Row/List template
-  const headers = ['Day', 'Period', 'Subject', 'TeacherName', 'Room'];
-  const sampleData = [
-    { Day: 'Monday', Period: 1, Subject: 'Mathematics', TeacherName: 'Aarav Sharma', Room: 'Room 101' },
-    { Day: 'Monday', Period: 2, Subject: 'Science (Physics)', TeacherName: 'Priya Mehta', Room: 'Room 102' },
-    { Day: 'Tuesday', Period: 3, Subject: 'Chemistry', TeacherName: 'Sneha Kapoor', Room: 'Room 104' },
-    { Day: 'Wednesday', Period: 4, Subject: 'English Literature', TeacherName: 'Rahul Verma', Room: 'Room 105' },
-    { Day: 'Thursday', Period: 5, Subject: 'Computer Science', TeacherName: 'Ananya Das', Room: 'Room 106' },
-  ];
+// Helper to compare uploaded template against current schedule
+export function validateScheduleMatch(
+  uploadedHeaders: string[],
+  currentSlots: ScheduleSlotConfig[]
+): { matches: boolean; currentNames: string[]; uploadedNames: string[] } {
+  const uploadedNames = uploadedHeaders
+    .filter(h => h.toLowerCase() !== 'day')
+    .map(h => h.trim());
+
+  const currentNames = currentSlots.map(s => `${s.name} (${s.start} - ${s.end})`.trim());
+
+  let matches = uploadedNames.length === currentNames.length;
+  if (matches) {
+    for (let i = 0; i < currentNames.length; i++) {
+      if (uploadedNames[i].toLowerCase() !== currentNames[i].toLowerCase()) {
+        matches = false;
+        break;
+      }
+    }
+  }
+
+  if (!matches) {
+    const currentOnlyNames = currentSlots.map(s => s.name.trim().toLowerCase());
+    const uploadedOnlyNames = uploadedNames.map(name => {
+      return name.replace(/\s*\(.*\)\s*/g, '').trim().toLowerCase();
+    });
+
+    let nameMatch = uploadedOnlyNames.length === currentOnlyNames.length;
+    if (nameMatch) {
+      for (let i = 0; i < currentOnlyNames.length; i++) {
+        if (uploadedOnlyNames[i] !== currentOnlyNames[i]) {
+          nameMatch = false;
+          break;
+        }
+      }
+    }
+    if (nameMatch) {
+      matches = true;
+    }
+  }
+
+  return {
+    matches,
+    currentNames: currentSlots.map(s => s.name),
+    uploadedNames: uploadedNames.map(name => name.replace(/\s*\(.*\)\s*/g, '').trim())
+  };
+}
+
+// Generate an Excel sheet as downloadable Blob dynamically based on current schedule slots
+export function generateClassTemplateExcel(
+  workingDays: string[],
+  scheduleSlots: ScheduleSlotConfig[]
+): Blob {
+  const headers = ['Day', ...scheduleSlots.map(s => `${s.name} (${s.start} - ${s.end})`)];
+  
+  const sampleData = workingDays.map((day, dIdx) => {
+    const row: any = { Day: day };
+    scheduleSlots.forEach((s, sIdx) => {
+      const colHeader = `${s.name} (${s.start} - ${s.end})`;
+      if (!s.requiresAssignment) {
+        row[colHeader] = s.name; // pre-fill special slots
+      } else {
+        if (dIdx === 0) {
+          // pre-fill a single sample row
+          if (sIdx === 2) row[colHeader] = 'Mathematics | Aarav Sharma | Room 101';
+          else if (sIdx === 3) row[colHeader] = 'Science (Physics) | Priya Mehta | Room 102';
+          else if (sIdx === 5) row[colHeader] = 'Chemistry | Sneha Kapoor | Room 104';
+          else row[colHeader] = 'English Literature | Rahul Verma | Room 105';
+        } else {
+          row[colHeader] = 'Subject | Teacher Name | Room';
+        }
+      }
+    });
+    return row;
+  });
 
   const ws = XLSX.utils.json_to_sheet(sampleData, { header: headers });
   const wb = XLSX.utils.book_new();

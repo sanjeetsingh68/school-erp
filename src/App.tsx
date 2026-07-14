@@ -577,6 +577,8 @@ export default function App() {
                   onUpdateSlot={handleUpdateScheduleSlot}
                   onImportTimetable={handleImportTimetable}
                   darkTheme={darkTheme}
+                  settings={state.settings}
+                  onUpdateSettings={handleUpdateSettings}
                 />
               )}
 

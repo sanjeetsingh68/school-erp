@@ -18,11 +18,12 @@ import {
   Download,
   AlertTriangle
 } from 'lucide-react';
-import { Teacher, TimetableSlot, DayOfWeek, ExtraClassRequest } from '../types';
+import { Teacher, TimetableSlot, DayOfWeek, ExtraClassRequest, SystemSettings, ScheduleSlotConfig } from '../types';
 import {
   parseExcelFile,
   processClassTimetable,
   generateClassTemplateExcel,
+  validateScheduleMatch,
   ClassImportResult,
   ImportPreviewSlot
 } from '../utils/excelParser';
@@ -34,6 +35,8 @@ interface TimetableManagementProps {
   onUpdateSlot: (teacherId: string, day: DayOfWeek, periodIndex: number, slot: TimetableSlot | null) => Promise<any>;
   onImportTimetable: (classSection: string, slots: any[]) => Promise<any>;
   darkTheme: boolean;
+  settings: SystemSettings;
+  onUpdateSettings: (settings: SystemSettings) => Promise<any>;
 }
 
 export default function TimetableManagement({
@@ -41,7 +44,10 @@ export default function TimetableManagement({
   selectedDate,
   onScheduleExtraClass,
   onUpdateSlot,
-  darkTheme
+  onImportTimetable,
+  darkTheme,
+  settings,
+  onUpdateSettings
 }: TimetableManagementProps) {
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'teacher'>('daily');
   const [selectedTeacherId, setSelectedTeacherId] = useState(teachers[0]?.id || '');
@@ -57,9 +63,25 @@ export default function TimetableManagement({
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Validation Mismatch State
+  const [mismatchData, setMismatchData] = useState<{
+    currentNames: string[];
+    uploadedNames: string[];
+    uploadedRows: any[];
+  } | null>(null);
+
+  // Schedule Builder State
+  const [isScheduleBuilderOpen, setIsScheduleBuilderOpen] = useState(false);
+  const [localSlots, setLocalSlots] = useState<ScheduleSlotConfig[]>([]);
+  const [localPeriodDuration, setLocalPeriodDuration] = useState<number>(settings.periodDuration || 45);
+  const [selectedPresetType, setSelectedPresetType] = useState<string>('teaching');
+  const [builderSuccess, setBuilderSuccess] = useState<string | null>(null);
+
   const downloadClassTemplate = () => {
     try {
-      const blob = generateClassTemplateExcel(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+      const workingDays = settings.workingDays && settings.workingDays.length > 0 ? settings.workingDays : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+      const scheduleSlots = settings.scheduleSlots || [];
+      const blob = generateClassTemplateExcel(workingDays, scheduleSlots);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -85,14 +107,36 @@ export default function TimetableManagement({
     if (!file) return;
 
     setImportError(null);
+    setMismatchData(null);
     setIsUploading(true);
 
     try {
       const rows = await parseExcelFile(file);
-      const classSection = `${selectedImportClass}-${selectedImportSection}`;
-      const workingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']; // standard working days
+      if (!rows || rows.length === 0) {
+        throw new Error('The uploaded file is empty or formatted incorrectly.');
+      }
 
-      const result = processClassTimetable(rows, teachers, classSection, workingDays);
+      // Check structure matching if in Grid format
+      const firstRowKeys = Object.keys(rows[0]);
+      const isListFormat = firstRowKeys.some(k => k.toLowerCase() === 'period');
+
+      if (!isListFormat && settings.scheduleSlots) {
+        const matchResult = validateScheduleMatch(firstRowKeys, settings.scheduleSlots);
+        if (!matchResult.matches) {
+          setMismatchData({
+            currentNames: matchResult.currentNames,
+            uploadedNames: matchResult.uploadedNames,
+            uploadedRows: rows
+          });
+          setIsUploading(false);
+          return;
+        }
+      }
+
+      const classSection = `${selectedImportClass}-${selectedImportSection}`;
+      const workingDays = settings.workingDays && settings.workingDays.length > 0 ? settings.workingDays : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+      const result = processClassTimetable(rows, teachers, classSection, workingDays, settings.scheduleSlots);
       setImportResult(result);
       setImportPreviewOpen(true);
     } catch (err: any) {
@@ -109,7 +153,6 @@ export default function TimetableManagement({
       setIsUploading(true);
       const classSection = `${selectedImportClass}-${selectedImportSection}`;
       
-      // format preview slots to match server expectations
       await onImportTimetable(classSection, importResult.slots);
       
       setImportPreviewOpen(false);
@@ -120,6 +163,138 @@ export default function TimetableManagement({
       setImportError(err.message || 'Failed saving imported timetable.');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // Time conversion helper
+  const addMinutesToTime = (timeStr: string, mins: number): string => {
+    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!match) return timeStr;
+    let hrs = parseInt(match[1], 10);
+    let minutes = parseInt(match[2], 10);
+    const ampm = match[3].toUpperCase();
+    if (ampm === 'PM' && hrs < 12) hrs += 12;
+    if (ampm === 'AM' && hrs === 12) hrs = 0;
+    
+    const totalMins = hrs * 60 + minutes + mins;
+    let newHrs = Math.floor(totalMins / 60) % 24;
+    let newMins = totalMins % 60;
+    
+    const newAmpm = newHrs >= 12 ? 'PM' : 'AM';
+    let displayHrs = newHrs % 12;
+    if (displayHrs === 0) displayHrs = 12;
+    
+    return `${String(displayHrs).padStart(2, '0')}:${String(newMins).padStart(2, '0')} ${newAmpm}`;
+  };
+
+  // Schedule slot builder handler functions
+  const moveSlotUp = (index: number) => {
+    if (index === 0) return;
+    const updated = [...localSlots];
+    const temp = updated[index];
+    updated[index] = updated[index - 1];
+    updated[index - 1] = temp;
+    setLocalSlots(updated);
+  };
+
+  const moveSlotDown = (index: number) => {
+    if (index === localSlots.length - 1) return;
+    const updated = [...localSlots];
+    const temp = updated[index];
+    updated[index] = updated[index + 1];
+    updated[index + 1] = temp;
+    setLocalSlots(updated);
+  };
+
+  const removeSlot = (index: number) => {
+    const updated = localSlots.filter((_, idx) => idx !== index);
+    setLocalSlots(updated);
+  };
+
+  const handleAddSlotPreset = () => {
+    const type = selectedPresetType;
+    let name = 'New Slot';
+    let requiresAssignment = false;
+    
+    switch (type) {
+      case 'teaching':
+        name = `Period ${localSlots.filter(s => s.type === 'teaching').length + 1}`;
+        requiresAssignment = true;
+        break;
+      case 'assembly':
+        name = 'Morning Assembly';
+        break;
+      case 'zero_period':
+        name = 'Zero Period';
+        break;
+      case 'break':
+        name = localSlots.some(s => s.name.includes('Lunch')) ? 'Short Break' : 'Lunch Break';
+        break;
+      case 'activity':
+        name = 'Activity Period';
+        break;
+      case 'sports':
+        name = 'Sports Period';
+        requiresAssignment = true;
+        break;
+      case 'library':
+        name = 'Library Period';
+        requiresAssignment = true;
+        break;
+      case 'laboratory':
+        name = 'Laboratory Period';
+        requiresAssignment = true;
+        break;
+      case 'free_period':
+        name = 'Free Period';
+        break;
+      case 'school_over':
+        name = 'School Over';
+        break;
+      default:
+        name = 'Custom Slot';
+    }
+
+    let start = '08:00 AM';
+    if (localSlots.length > 0) {
+      start = localSlots[localSlots.length - 1].end;
+    }
+    const end = addMinutesToTime(start, localPeriodDuration);
+
+    const newSlot: ScheduleSlotConfig = {
+      id: `slot_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      name,
+      type: type as any,
+      start,
+      end,
+      requiresAssignment
+    };
+
+    setLocalSlots([...localSlots, newSlot]);
+  };
+
+  const handleSaveScheduleBuilder = async () => {
+    try {
+      setBuilderSuccess(null);
+      
+      const hasInvalidTimes = localSlots.some(s => !s.start || !s.end || !s.name);
+      if (hasInvalidTimes) {
+        alert('Please fill in all slot names and times correctly.');
+        return;
+      }
+
+      const updatedSettings = {
+        ...settings,
+        scheduleSlots: localSlots,
+        periodDuration: localPeriodDuration,
+        timetableVersion: (settings.timetableVersion || 1) + 1
+      };
+
+      await onUpdateSettings(updatedSettings);
+      setBuilderSuccess(`Daily Schedule Configuration synchronized. Active schedule layout is now v${updatedSettings.timetableVersion}.`);
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed saving schedule slots: ' + err.message);
     }
   };
 
@@ -143,17 +318,22 @@ export default function TimetableManagement({
   const [editRoom, setEditRoom] = useState('Room 101');
   const [editError, setEditError] = useState<string | null>(null);
 
-  const daysOrder: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const timings = [
-    '08:30 AM - 09:20 AM',
-    '09:20 AM - 10:10 AM',
-    '10:30 AM - 11:20 AM',
-    '11:20 AM - 12:10 PM',
-    '01:00 PM - 01:50 PM',
-    '01:50 PM - 02:40 PM',
-    '02:40 PM - 03:30 PM',
-    '03:30 PM - 04:20 PM'
-  ];
+  const daysOrder: DayOfWeek[] = (settings.workingDays && settings.workingDays.length > 0
+    ? settings.workingDays
+    : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']) as DayOfWeek[];
+
+  const timings = settings.scheduleSlots && settings.scheduleSlots.length > 0
+    ? settings.scheduleSlots.map(s => `${s.start} - ${s.end}`)
+    : [
+        '08:30 AM - 09:20 AM',
+        '09:20 AM - 10:10 AM',
+        '10:30 AM - 11:20 AM',
+        '11:20 AM - 12:10 PM',
+        '01:00 PM - 01:50 PM',
+        '01:50 PM - 02:40 PM',
+        '02:40 PM - 03:30 PM',
+        '03:30 PM - 04:20 PM'
+      ];
 
   const classList = [
     'Grade 10-A', 'Grade 10-B', 'Grade 9-A', 'Grade 9-B', 
@@ -272,6 +452,22 @@ export default function TimetableManagement({
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => {
+              setLocalSlots(settings.scheduleSlots || []);
+              setLocalPeriodDuration(settings.periodDuration || 45);
+              setIsScheduleBuilderOpen(!isScheduleBuilderOpen);
+              setBuilderSuccess(null);
+            }}
+            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all border shrink-0 cursor-pointer flex items-center gap-1 ${
+              isScheduleBuilderOpen 
+                ? 'bg-amber-100 dark:bg-amber-950 border-amber-300 dark:border-amber-900 text-amber-800 dark:text-amber-300' 
+                : darkTheme ? 'bg-slate-800 border-slate-700 hover:bg-slate-750' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-750'
+            }`}
+          >
+            <Clock className="h-4 w-4" /> ⚙️ Configure Schedule Slots
+          </button>
+
+          <button
             onClick={handlePrint}
             className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all border shrink-0 cursor-pointer flex items-center gap-1 ${
               darkTheme ? 'bg-slate-800 border-slate-700 hover:bg-slate-750' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-750'
@@ -297,10 +493,323 @@ export default function TimetableManagement({
         </div>
       </div>
 
+      {isScheduleBuilderOpen && (
+        <div className={`p-5 rounded-2xl border ${
+          darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+        }`}>
+          <div className="flex justify-between items-center mb-4 pb-3 border-b dark:border-slate-800">
+            <div>
+              <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-amber-500 animate-spin-slow" /> School Daily Schedule Slots Builder
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Configure your school's daily timings, lessons, breaks, zero period, and assemblies.
+              </p>
+            </div>
+            <button 
+              onClick={() => setIsScheduleBuilderOpen(false)}
+              className="text-slate-400 hover:text-slate-650 cursor-pointer text-xs font-semibold px-2 py-1 rounded bg-slate-100 dark:bg-slate-800"
+            >
+              Close
+            </button>
+          </div>
+
+          {builderSuccess && (
+            <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/30 rounded-xl text-xs font-bold flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" /> {builderSuccess}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b dark:border-slate-800">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Standard Period Duration (Minutes)</label>
+                <input
+                  type="number"
+                  value={localPeriodDuration}
+                  onChange={(e) => setLocalPeriodDuration(parseInt(e.target.value, 10) || 45)}
+                  className="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Add Preset Slot Type</label>
+                <div className="flex gap-2">
+                  <select
+                    value={selectedPresetType}
+                    onChange={(e) => setSelectedPresetType(e.target.value)}
+                    className="flex-1 px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white text-slate-800"
+                  >
+                    <option value="teaching">Teaching Period</option>
+                    <option value="assembly">Morning Assembly</option>
+                    <option value="zero_period">Zero Period</option>
+                    <option value="break">Recess/Lunch Break</option>
+                    <option value="activity">Activity Period</option>
+                    <option value="sports">Sports Period</option>
+                    <option value="library">Library Period</option>
+                    <option value="laboratory">Laboratory Period</option>
+                    <option value="free_period">Free Period</option>
+                    <option value="school_over">School Over</option>
+                  </select>
+                  <button
+                    onClick={handleAddSlotPreset}
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Preset
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Slots List */}
+            <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
+              {localSlots.length === 0 ? (
+                <div className="text-center py-6 text-slate-400 text-xs italic">
+                  No slots configured. Use the preset tool above to build your daily timetable layout!
+                </div>
+              ) : (
+                localSlots.map((slot, index) => {
+                  const isTeaching = slot.type === 'teaching';
+                  return (
+                    <div 
+                      key={slot.id} 
+                      className={`p-3 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                        isTeaching 
+                          ? 'bg-blue-50/10 border-blue-100 dark:border-blue-900/30' 
+                          : 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {/* Order Controls */}
+                        <div className="flex flex-col gap-1">
+                          <button
+                            disabled={index === 0}
+                            onClick={() => moveSlotUp(index)}
+                            className="p-1 rounded bg-slate-200 dark:bg-slate-800 text-[10px] hover:bg-slate-300 disabled:opacity-30 cursor-pointer"
+                            title="Move Up"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            disabled={index === localSlots.length - 1}
+                            onClick={() => moveSlotDown(index)}
+                            className="p-1 rounded bg-slate-200 dark:bg-slate-800 text-[10px] hover:bg-slate-300 disabled:opacity-30 cursor-pointer"
+                            title="Move Down"
+                          >
+                            ▼
+                          </button>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase font-mono bg-slate-200/50 dark:bg-slate-800 px-1.5 py-0.5 rounded mr-2">
+                            Slot {index + 1}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            slot.type === 'teaching' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' :
+                            slot.type === 'break' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' :
+                            'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                          }`}>
+                            {slot.type}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 flex-1 w-full sm:w-auto sm:ml-4">
+                        {/* Name Edit */}
+                        <div className="col-span-1 sm:col-span-2">
+                          <input
+                            type="text"
+                            value={slot.name}
+                            onChange={(e) => {
+                              const updated = [...localSlots];
+                              updated[index].name = e.target.value;
+                              setLocalSlots(updated);
+                            }}
+                            className="w-full px-2.5 py-1 border border-slate-200 dark:border-slate-850 rounded-lg text-xs bg-white text-slate-800"
+                            placeholder="Slot Name"
+                          />
+                        </div>
+
+                        {/* Start/End Time */}
+                        <div>
+                          <input
+                            type="text"
+                            value={slot.start}
+                            onChange={(e) => {
+                              const updated = [...localSlots];
+                              updated[index].start = e.target.value;
+                              setLocalSlots(updated);
+                            }}
+                            className="w-full px-2.5 py-1 border border-slate-200 dark:border-slate-850 rounded-lg text-xs font-mono bg-white text-slate-800"
+                            placeholder="08:30 AM"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            type="text"
+                            value={slot.end}
+                            onChange={(e) => {
+                              const updated = [...localSlots];
+                              updated[index].end = e.target.value;
+                              setLocalSlots(updated);
+                            }}
+                            className="w-full px-2.5 py-1 border border-slate-200 dark:border-slate-850 rounded-lg text-xs font-mono bg-white text-slate-800"
+                            placeholder="09:20 AM"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 mt-2 sm:mt-0">
+                        {/* Require Assignment */}
+                        <label className="flex items-center gap-1.5 text-[10px] text-slate-400 font-semibold select-none">
+                          <input
+                            type="checkbox"
+                            checked={!!slot.requiresAssignment}
+                            onChange={(e) => {
+                              const updated = [...localSlots];
+                              updated[index].requiresAssignment = e.target.checked;
+                              setLocalSlots(updated);
+                            }}
+                            className="rounded text-blue-600 focus:ring-0"
+                          />
+                          Requires Assignment
+                        </label>
+
+                        {/* Delete Slot */}
+                        <button
+                          onClick={() => removeSlot(index)}
+                          className="p-1 text-red-500 hover:text-red-700 bg-red-50 dark:bg-red-950/20 rounded cursor-pointer"
+                          title="Remove Slot"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t dark:border-slate-800">
+              <button
+                onClick={handleSaveScheduleBuilder}
+                className="px-5 py-2 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow-lg cursor-pointer flex items-center gap-1"
+              >
+                💾 Save and Regenerate Slots (v{(settings.timetableVersion || 1) + 1})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Validation Mismatch Modal Overlay */}
+      {mismatchData && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50 p-4 backdrop-blur-xs">
+          <div className={`w-full max-w-2xl p-6 rounded-2xl shadow-2xl border transition-all ${
+            darkTheme ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-white border-slate-100 text-slate-800'
+          }`}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1.5 animate-pulse">
+                <AlertTriangle className="h-5 w-5" /> Template Mismatch Detected
+              </h3>
+              <button 
+                onClick={() => setMismatchData(null)} 
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 leading-normal text-xs">
+              <p className="text-slate-400">
+                The uploaded spreadsheet's columns do not match the current <strong>School Schedule Configuration</strong>.
+                Please review the differences below. You must download and use the latest template to import timetables successfully.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Current Active Structure */}
+                <div className={`p-4 rounded-xl border ${darkTheme ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                  <h4 className="font-bold text-slate-550 mb-2 flex items-center gap-1 text-emerald-600">
+                    <Check className="h-4 w-4" /> Active School Schedule Configuration
+                  </h4>
+                  <ul className="space-y-1.5 font-mono text-[10px]">
+                    {mismatchData.currentNames.map((name, idx) => (
+                      <li key={idx} className="p-1 px-2 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                        Slot {idx + 1}: {name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Uploaded File Structure */}
+                <div className={`p-4 rounded-xl border ${darkTheme ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                  <h4 className="font-bold text-slate-550 mb-2 flex items-center gap-1 text-red-600">
+                    <AlertCircle className="h-4 w-4" /> Uploaded File Columns
+                  </h4>
+                  <ul className="space-y-1.5 font-mono text-[10px]">
+                    {mismatchData.uploadedNames.map((name, idx) => {
+                      const isMatched = mismatchData.currentNames[idx] === name;
+                      return (
+                        <li 
+                          key={idx} 
+                          className={`p-1 px-2 rounded-md ${
+                            isMatched 
+                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
+                              : 'bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20'
+                          }`}
+                        >
+                          Col {idx + 1}: {name || ' (Empty/Unmapped Slot)'}
+                        </li>
+                      );
+                    })}
+                    {mismatchData.uploadedNames.length < mismatchData.currentNames.length && (
+                      <li className="text-red-500 font-bold p-1 italic text-[9px]">
+                        Missing {mismatchData.currentNames.length - mismatchData.uploadedNames.length} slot column(s) in uploaded file!
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2.5 justify-end pt-3 border-t dark:border-slate-800">
+                <button
+                  onClick={() => setMismatchData(null)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel Import
+                </button>
+                
+                <button
+                  onClick={() => {
+                    downloadClassTemplate();
+                    setMismatchData(null);
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg cursor-pointer flex items-center gap-1.5"
+                >
+                  <Download className="h-4 w-4" /> Download Updated Template
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* EXCEL TIMETABLE IMPORT & ASSIGNMENT PANEL */}
       <div className={`p-5 rounded-2xl border ${
         darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-xs'
       }`}>
+        {settings.timetableVersion && settings.timetableVersion > 1 && (
+          <div className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl flex items-start gap-2.5">
+            <Clock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h5 className="text-xs font-bold text-amber-850 dark:text-amber-400">Timetable Configuration Updated (v{settings.timetableVersion})</h5>
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
+                The school schedule timings, periods, or breaks were recently modified. Previously downloaded template files are now <strong>outdated</strong>. Please click <strong>Download Template</strong> to grab the latest configuration before running future imports.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div className="space-y-1">
             <h3 className="font-bold text-sm tracking-tight flex items-center gap-1.5">
@@ -475,14 +984,18 @@ export default function TimetableManagement({
               <thead>
                 <tr className={`border-b ${darkTheme ? 'border-slate-800 bg-slate-950/40' : 'bg-slate-50/50 border-slate-100'}`}>
                   <th className="p-3.5 font-bold text-slate-550 w-44">Educator Name</th>
-                  {timings.map((time, idx) => (
-                    <th key={idx} className="p-3.5 font-bold text-slate-550 min-w-44 border-l dark:border-slate-800">
-                      <div className="flex flex-col">
-                        <span>Period {idx + 1}</span>
-                        <span className="text-[10px] text-slate-400 font-mono mt-0.5">{time}</span>
-                      </div>
-                    </th>
-                  ))}
+                  {timings.map((time, idx) => {
+                    const slotConf = settings.scheduleSlots?.[idx];
+                    const label = slotConf ? slotConf.name : `Period ${idx + 1}`;
+                    return (
+                      <th key={idx} className="p-3.5 font-bold text-slate-550 min-w-44 border-l dark:border-slate-800">
+                        <div className="flex flex-col">
+                          <span>{label}</span>
+                          <span className="text-[10px] text-slate-400 font-mono mt-0.5">{time}</span>
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -495,15 +1008,30 @@ export default function TimetableManagement({
                       </div>
                     </td>
                     
-                    {Array(6).fill(null).map((_, pIdx) => {
+                    {Array(timings.length).fill(null).map((_, pIdx) => {
                       const slot = teacher.schedule[selectedDay]?.[pIdx];
+                      const slotConf = settings.scheduleSlots?.[pIdx];
+                      const isSpecial = slotConf && !slotConf.requiresAssignment;
+
                       return (
                         <td 
                           key={pIdx} 
-                          onClick={() => handleOpenEditSlot(teacher.id, selectedDay, pIdx)}
-                          className="p-3.5 border-l dark:border-slate-800 cursor-pointer group hover:bg-blue-50/20 dark:hover:bg-slate-800/10 transition-colors"
+                          onClick={() => {
+                            if (!isSpecial) {
+                              handleOpenEditSlot(teacher.id, selectedDay, pIdx);
+                            }
+                          }}
+                          className={`p-3.5 border-l dark:border-slate-800 transition-colors ${
+                            isSpecial 
+                              ? 'bg-slate-100/50 dark:bg-slate-950/40 cursor-not-allowed select-none' 
+                              : 'cursor-pointer group hover:bg-blue-50/20 dark:hover:bg-slate-800/10'
+                          }`}
                         >
-                          {slot ? (
+                          {isSpecial ? (
+                            <div className="py-2 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-bold">
+                              <span className="text-[9px] tracking-wide uppercase bg-slate-200/60 dark:bg-slate-850 px-2 py-0.5 rounded-md">{slotConf.name}</span>
+                            </div>
+                          ) : slot ? (
                             <div className="space-y-1 relative">
                               <div className="flex justify-between items-start gap-1">
                                 <span className={`font-bold text-xs ${slot.isExtra ? 'text-indigo-600' : 'text-blue-700 dark:text-blue-300'}`}>
@@ -557,24 +1085,35 @@ export default function TimetableManagement({
                 </div>
 
                 <div className="space-y-3">
-                  {Array(6).fill(null).map((_, pIdx) => {
+                  {Array(timings.length).fill(null).map((_, pIdx) => {
                     const slot = activeTeacher?.schedule[day]?.[pIdx];
+                    const slotConf = settings.scheduleSlots?.[pIdx];
+                    const isSpecial = slotConf && !slotConf.requiresAssignment;
+
                     return (
                       <div 
                         key={pIdx} 
-                        onClick={() => handleOpenEditSlot(activeTeacher?.id, day, pIdx)}
-                        className={`p-3 rounded-xl border cursor-pointer hover:border-blue-400 dark:hover:border-slate-700 transition-all ${
-                          slot 
-                            ? 'bg-blue-50/15 border-blue-100 dark:bg-blue-950/10' 
-                            : 'bg-slate-50/30 border-dashed border-slate-200 dark:bg-slate-950/10 dark:border-slate-850'
+                        onClick={() => {
+                          if (!isSpecial) {
+                            handleOpenEditSlot(activeTeacher?.id, day, pIdx);
+                          }
+                        }}
+                        className={`p-3 rounded-xl border transition-all ${
+                          isSpecial
+                            ? 'bg-slate-100/45 border-slate-200 dark:bg-slate-950/20 dark:border-slate-850 cursor-not-allowed select-none'
+                            : slot 
+                              ? 'bg-blue-50/15 border-blue-100 dark:bg-blue-950/10 cursor-pointer hover:border-blue-400 dark:hover:border-slate-750' 
+                              : 'bg-slate-50/30 border-dashed border-slate-200 dark:bg-slate-950/10 dark:border-slate-850 cursor-pointer hover:border-blue-450'
                         }`}
                       >
                         <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold mb-1">
-                          <span>Period {pIdx + 1}</span>
+                          <span>{slotConf ? slotConf.name : `Period ${pIdx + 1}`}</span>
                           <span>{timings[pIdx].split('-')[0].trim()}</span>
                         </div>
 
-                        {slot ? (
+                        {isSpecial ? (
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold py-1.5 text-center bg-slate-200/40 dark:bg-slate-900/40 rounded-md uppercase tracking-wider">{slotConf.name}</p>
+                        ) : slot ? (
                           <div>
                             <h5 className="font-bold text-xs truncate">{slot.classSection}</h5>
                             <p className="text-[10px] text-slate-500 mt-0.5 truncate">{slot.subject}</p>

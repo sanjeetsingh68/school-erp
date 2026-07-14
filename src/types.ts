@@ -120,6 +120,15 @@ export interface UserSession {
   role: 'admin' | 'teacher';
 }
 
+export interface ScheduleSlotConfig {
+  id: string;
+  name: string;
+  type: 'teaching' | 'break' | 'assembly' | 'zero_period' | 'activity' | 'sports' | 'library' | 'laboratory' | 'free_period' | 'school_over' | 'custom';
+  start: string;
+  end: string;
+  requiresAssignment: boolean;
+}
+
 export interface SystemSettings {
   schoolInfo: {
     name: string;
@@ -142,6 +151,8 @@ export interface SystemSettings {
     lunchStart: string; // e.g. "12:10 PM"
     lunchEnd: string;   // e.g. "01:00 PM"
   };
+  scheduleSlots?: ScheduleSlotConfig[];
+  timetableVersion?: number;
   holidayCalendar: { id: string; name: string; date: string }[];
   notificationSettings: {
     emailAlerts: boolean;

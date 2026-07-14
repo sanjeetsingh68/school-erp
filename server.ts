@@ -46,13 +46,27 @@ const defaultSettings: SystemSettings = {
     "Physical Education", "English Grammar", "Economics & Commerce", "French Language", "Physics"
   ],
   workingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-  periodDuration: 50,
+  periodDuration: 45,
   schoolTimings: {
-    start: "08:30 AM",
-    end: "02:40 PM",
-    lunchStart: "12:10 PM",
+    start: "08:00 AM",
+    end: "02:30 PM",
+    lunchStart: "12:15 PM",
     lunchEnd: "01:00 PM"
   },
+  timetableVersion: 1,
+  scheduleSlots: [
+    { id: "s1", name: "Morning Assembly", type: "assembly", start: "08:00 AM", end: "08:15 AM", requiresAssignment: false },
+    { id: "s2", name: "Zero Period", type: "zero_period", start: "08:15 AM", end: "09:00 AM", requiresAssignment: false },
+    { id: "s3", name: "Period 1", type: "teaching", start: "09:00 AM", end: "09:45 AM", requiresAssignment: true },
+    { id: "s4", name: "Period 2", type: "teaching", start: "09:45 AM", end: "10:30 AM", requiresAssignment: true },
+    { id: "s5", name: "Short Break", type: "break", start: "10:30 AM", end: "10:45 AM", requiresAssignment: false },
+    { id: "s6", name: "Period 3", type: "teaching", start: "10:45 AM", end: "11:30 AM", requiresAssignment: true },
+    { id: "s7", name: "Period 4", type: "teaching", start: "11:30 AM", end: "12:15 PM", requiresAssignment: true },
+    { id: "s8", name: "Lunch Break", type: "break", start: "12:15 PM", end: "01:00 PM", requiresAssignment: false },
+    { id: "s9", name: "Period 5", type: "teaching", start: "01:00 PM", end: "01:45 PM", requiresAssignment: true },
+    { id: "s10", name: "Period 6", type: "teaching", start: "01:45 PM", end: "02:30 PM", requiresAssignment: true },
+    { id: "s11", name: "School Over", type: "school_over", start: "02:30 PM", end: "02:30 PM", requiresAssignment: false }
+  ],
   holidayCalendar: [
     { id: "h1", name: "Independence Day", date: "2026-08-15" },
     { id: "h2", name: "Gandhi Jayanti", date: "2026-10-02" },
@@ -93,11 +107,12 @@ function seedInitialData(): ERPDataState {
     const phone = `+91 ${Math.floor(8000000000 + Math.random() * 2000000000)}`;
 
     const schedule: any = {
-      Monday: Array(6).fill(null),
-      Tuesday: Array(6).fill(null),
-      Wednesday: Array(6).fill(null),
-      Thursday: Array(6).fill(null),
-      Friday: Array(6).fill(null)
+      Monday: Array(11).fill(null),
+      Tuesday: Array(11).fill(null),
+      Wednesday: Array(11).fill(null),
+      Thursday: Array(11).fill(null),
+      Friday: Array(11).fill(null),
+      Saturday: Array(11).fill(null)
     };
 
     return {
@@ -112,9 +127,11 @@ function seedInitialData(): ERPDataState {
     };
   });
 
+  const teachingIndices = [2, 3, 5, 6, 8, 9];
+
   const classAvailability: { [day: string]: boolean[][] } = {};
   daysOrder.forEach(day => {
-    classAvailability[day] = Array(6).fill(0).map(() => Array(20).fill(false)); 
+    classAvailability[day] = Array(11).fill(0).map(() => Array(20).fill(false)); 
   });
 
   const classList = [
@@ -127,10 +144,11 @@ function seedInitialData(): ERPDataState {
       let periodsAssigned = 0;
       const targetPeriods = 2 + (tIdx + dIdx) % 2; // either 2 or 3 periods
 
-      for (let p = 0; p < 6; p++) {
+      for (let i = 0; i < teachingIndices.length; i++) {
         if (periodsAssigned >= targetPeriods) break;
+        const p = teachingIndices[i];
 
-        const targetClass = (p % 2 === 0) ? t.classSection : classList[(tIdx + p) % classList.length];
+        const targetClass = (i % 2 === 0) ? t.classSection : classList[(tIdx + i) % classList.length];
         const classIndex = classList.indexOf(targetClass);
 
         if (!classAvailability[day][p][classIndex]) {
@@ -671,14 +689,15 @@ app.post('/api/teachers/import-bulk', (req, res) => {
       };
       updatedCount++;
     } else {
-      // Create new with blank 8-period schedule
+      // Create new with blank dynamic schedule
+      const slotCount = state.settings.scheduleSlots?.length || 11;
       const initialSchedule: any = {
-        Monday: Array(8).fill(null),
-        Tuesday: Array(8).fill(null),
-        Wednesday: Array(8).fill(null),
-        Thursday: Array(8).fill(null),
-        Friday: Array(8).fill(null),
-        Saturday: Array(8).fill(null)
+        Monday: Array(slotCount).fill(null),
+        Tuesday: Array(slotCount).fill(null),
+        Wednesday: Array(slotCount).fill(null),
+        Thursday: Array(slotCount).fill(null),
+        Friday: Array(slotCount).fill(null),
+        Saturday: Array(slotCount).fill(null)
       };
 
       state.teachers.push({
@@ -1147,6 +1166,26 @@ app.get('/api/settings', (req, res) => {
 
 app.post('/api/settings', (req, res) => {
   const state = loadState();
+  const oldSlots = state.settings?.scheduleSlots || defaultSettings.scheduleSlots || [];
+  const newSlots = req.body.scheduleSlots || [];
+
+  if (newSlots.length > 0 && JSON.stringify(oldSlots) !== JSON.stringify(newSlots)) {
+    state.teachers.forEach(teacher => {
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      days.forEach(day => {
+        const oldDaySchedule = [...(teacher.schedule[day] || [])];
+        const newDaySchedule = newSlots.map((newS: any) => {
+          const oldIdx = oldSlots.findIndex(s => s.id === newS.id);
+          if (oldIdx !== -1 && oldIdx < oldDaySchedule.length) {
+            return oldDaySchedule[oldIdx];
+          }
+          return null;
+        });
+        teacher.schedule[day] = newDaySchedule;
+      });
+    });
+  }
+
   state.settings = { ...defaultSettings, ...req.body };
   saveState(state);
   res.json({ success: true, state });
