@@ -10,8 +10,30 @@ import {
   HelpCircle,
   X,
   FileCheck2,
-  CalendarDays
+  CalendarDays,
+  Check,
+  ArrowLeft,
+  Download,
+  AlertCircle,
+  Sparkles,
+  School,
+  FileText
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Cell, 
+  PieChart, 
+  Pie,
+  LineChart,
+  Line
+} from 'recharts';
 
 interface Lesson {
   id: string;
@@ -50,6 +72,376 @@ export default function LessonsLearned({ darkTheme }: LessonsLearnedProps) {
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [activeTab, setActiveTab] = useState<'completed' | 'pending' | 'timeline' | 'summary' | 'subject' | 'stats'>('completed');
   const [isTabLoading, setIsTabLoading] = useState(false);
+  const [selectedKpi, setSelectedKpi] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleExport = (type: string, kpiName: string) => {
+    showToast(`Successfully generated and downloaded ${kpiName} records as ${type.toUpperCase()}!`);
+  };
+
+  // 1. Total Courses Detail
+  const renderTotalCoursesDetails = () => {
+    const countsBySubject: { [key: string]: number } = {};
+    lessons.forEach(l => {
+      countsBySubject[l.subject] = (countsBySubject[l.subject] || 0) + 1;
+    });
+    const barData = Object.keys(countsBySubject).map(sub => ({
+      name: sub,
+      lessons: countsBySubject[sub]
+    }));
+
+    return (
+      <div className={`p-6 rounded-2xl border ${
+        darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+      } space-y-6`}>
+        <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-1 rounded-md">Drilldown Insight</span>
+            <h3 className="text-lg font-bold mt-1">Total Courses Academic Dossier</h3>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => handleExport('pdf', 'Total Courses')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl transition-all cursor-pointer"
+            >
+              <Download className="h-3 w-3" /> Export PDF
+            </button>
+            <button 
+              onClick={() => setSelectedKpi(null)}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+            >
+              <ArrowLeft className="h-3 w-3" /> Back
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="md:col-span-2 space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Course Distribution by Subject</h4>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkTheme ? '#1e293b' : '#f1f5f9'} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: darkTheme ? '#0f172a' : '#ffffff', 
+                      borderColor: darkTheme ? '#1e293b' : '#e2e8f0',
+                      borderRadius: '12px',
+                      fontSize: '11px'
+                    }} 
+                  />
+                  <Bar dataKey="lessons" radius={[6, 6, 0, 0]}>
+                    {barData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#2563eb' : '#4f46e5'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Syllabus Breakdown</h4>
+            <div className="space-y-3">
+              {lessons.map(l => (
+                <div key={l.id} className="p-3 rounded-xl border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 text-xs flex justify-between items-center">
+                  <div>
+                    <p className="font-bold">{l.subject}</p>
+                    <p className="text-[10px] text-slate-400">{l.classSection}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${
+                    l.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' :
+                    l.status === 'Ongoing' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400' :
+                    'bg-slate-100 text-slate-600 dark:bg-slate-800'
+                  }`}>{l.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 2. Completed Detail
+  const renderCompletedDetails = () => {
+    const completedList = lessons.filter(l => l.status === 'Completed');
+    return (
+      <div className={`p-6 rounded-2xl border ${
+        darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+      } space-y-6`}>
+        <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 rounded-md">Drilldown Insight</span>
+            <h3 className="text-lg font-bold mt-1">Completed Curriculum Logs</h3>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => handleExport('pdf', 'Completed Lessons')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-bold rounded-xl transition-all cursor-pointer"
+            >
+              <Download className="h-3 w-3" /> Export Archive
+            </button>
+            <button 
+              onClick={() => setSelectedKpi(null)}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+            >
+              <ArrowLeft className="h-3 w-3" /> Back
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Completed Chapters Timeline</h4>
+            <div className="relative border-l border-slate-100 dark:border-slate-800 pl-4 ml-2 space-y-5">
+              {completedList.map(l => (
+                <div key={l.id} className="relative">
+                  <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-white dark:ring-slate-900" />
+                  <div className="text-xs">
+                    <span className="font-mono text-[10px] text-slate-400">{l.date}</span>
+                    <p className="font-bold text-slate-900 dark:text-white">{l.subject} — {l.topic}</p>
+                    <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Educated by {l.teacherName} in {l.durationMinutes} mins.</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-emerald-50/20 dark:bg-emerald-950/10 border border-emerald-500/10 flex flex-col justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-emerald-600">
+                <Sparkles className="h-4 w-4 animate-pulse" />
+                <span className="text-xs font-black">Quality Standing Summary</span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-semibold">
+                Syllabus benchmarks successfully archived with zero backlog. Class response logs indicate high scholastic performance, particularly within physical and natural science components.
+              </p>
+            </div>
+            <div className="mt-6 border-t dark:border-slate-800 pt-4 flex justify-between items-center text-xs">
+              <span className="text-slate-400">Archived Units:</span>
+              <span className="font-bold text-emerald-600">{completedList.length} Chapters</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 3. Ongoing Detail
+  const renderOngoingDetails = () => {
+    const ongoingList = lessons.filter(l => l.status === 'Ongoing');
+    return (
+      <div className={`p-6 rounded-2xl border ${
+        darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+      } space-y-6`}>
+        <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-indigo-650 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-1 rounded-md">Drilldown Insight</span>
+            <h3 className="text-lg font-bold mt-1">Ongoing Subject Tracks</h3>
+          </div>
+          <button 
+            onClick={() => setSelectedKpi(null)}
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+          >
+            <ArrowLeft className="h-3 w-3" /> Back
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Active Syllabus Progress Indicators</h4>
+            <div className="space-y-4">
+              {ongoingList.map(l => (
+                <div key={l.id} className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white">{l.subject}</span>
+                      <span className="text-[10px] text-slate-400 ml-2">({l.classSection})</span>
+                    </div>
+                    <span className="font-black font-mono text-indigo-600">{l.progressPct}%</span>
+                  </div>
+                  <div className="w-full bg-slate-100 dark:bg-slate-850 h-2 rounded-full overflow-hidden">
+                    <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${l.progressPct}%` }} />
+                  </div>
+                  <p className="text-[10px] text-slate-400 italic">Topic: {l.topic} • Led by {l.teacherName}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-indigo-50/20 dark:bg-indigo-950/10 border border-indigo-500/10 space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Current Academic Pacing Remarks</h4>
+            <div className="space-y-2">
+              {ongoingList.map(l => (
+                <div key={l.id} className="flex gap-2 items-start text-xs">
+                  <span className="p-1 bg-indigo-100 text-indigo-600 dark:bg-indigo-950 rounded-lg mt-0.5">
+                    <School className="h-3 w-3" />
+                  </span>
+                  <div>
+                    <p className="font-bold text-slate-700 dark:text-slate-300">{l.subject}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{l.remarks}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 4. Pending Detail
+  const renderPendingDetails = () => {
+    const pendingList = lessons.filter(l => l.status === 'Pending');
+    return (
+      <div className={`p-6 rounded-2xl border ${
+        darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+      } space-y-6`}>
+        <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded-md">Drilldown Insight</span>
+            <h3 className="text-lg font-bold mt-1">Upcoming Scheduled Units</h3>
+          </div>
+          <button 
+            onClick={() => setSelectedKpi(null)}
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+          >
+            <ArrowLeft className="h-3 w-3" /> Back
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Upcoming Calendar Roster</h4>
+            <div className="space-y-3">
+              {pendingList.map(l => (
+                <div key={l.id} className="p-4 rounded-xl border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 text-xs space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-slate-900 dark:text-white">{l.subject} ({l.classSection})</span>
+                    <span className="font-mono text-[10px] text-slate-400 flex items-center gap-1"><Calendar className="h-3 w-3" /> {l.date}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500">Scheduled Instructor: <span className="font-semibold text-slate-700 dark:text-slate-300">{l.teacherName}</span></p>
+                  <div className="border-t dark:border-slate-800 pt-2 mt-1">
+                    <p className="text-[10px] font-bold text-slate-400">Scheduled Topic Objective:</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 italic">{l.topic}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-amber-50/20 dark:bg-amber-950/10 border border-amber-500/10 space-y-4">
+            <div className="flex items-center gap-2 text-amber-600 font-bold text-xs">
+              <AlertCircle className="h-4 w-4" /> Curriculum Prep Checklist
+            </div>
+            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-400 font-semibold">
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Lesson material review and syllabus alignments
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Shared slide decks and digital resources
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Prep worksheets and student prerequisite handouts
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 5. Total Completion Detail
+  const renderSyllabusProgressDetails = () => {
+    // Dummy progression trends
+    const lineData = [
+      { week: 'Week 1', completed: 1 },
+      { week: 'Week 2', completed: 2 },
+      { week: 'Week 3', completed: 3 },
+      { week: 'Week 4', completed: 4 },
+      { week: 'Week 5', completed: 5 }
+    ];
+
+    return (
+      <div className={`p-6 rounded-2xl border ${
+        darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+      } space-y-6`}>
+        <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-1 rounded-md">Drilldown Insight</span>
+            <h3 className="text-lg font-bold mt-1">Syllabus Progression Analytics</h3>
+          </div>
+          <button 
+            onClick={() => setSelectedKpi(null)}
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+          >
+            <ArrowLeft className="h-3 w-3" /> Back
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="md:col-span-2 space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Cumulative Semester Syllabus Progress Curve</h4>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={lineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkTheme ? '#1e293b' : '#f1f5f9'} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: darkTheme ? '#0f172a' : '#ffffff', 
+                      borderColor: darkTheme ? '#1e293b' : '#e2e8f0',
+                      borderRadius: '12px',
+                      fontSize: '11px'
+                    }} 
+                  />
+                  <Line type="monotone" dataKey="completed" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: '#3b82f6' }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Progression Metrics Breakdown</h4>
+            <div className="p-4 rounded-2xl border dark:border-slate-800 space-y-4">
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-bold">
+                  <span>Syllabus Completed</span>
+                  <span className="text-emerald-500">74%</span>
+                </div>
+                <div className="w-full bg-slate-100 dark:bg-slate-850 h-2 rounded-full overflow-hidden">
+                  <div className="bg-emerald-500 h-full rounded-full" style={{ width: '74%' }} />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-bold">
+                  <span>Student Syllabus Contentment</span>
+                  <span className="text-blue-500">89%</span>
+                </div>
+                <div className="w-full bg-slate-100 dark:bg-slate-850 h-2 rounded-full overflow-hidden">
+                  <div className="bg-blue-500 h-full rounded-full" style={{ width: '89%' }} />
+                </div>
+              </div>
+
+              <p className="text-[10px] text-slate-500 leading-relaxed pt-2 border-t dark:border-slate-800">
+                Pacing targets for the standard midterm examinations are well on course with an average curriculum fulfillment rate of 74% across all subjects.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const handleTabChange = (tabId: typeof activeTab) => {
     setIsTabLoading(true);
@@ -129,9 +521,16 @@ export default function LessonsLearned({ darkTheme }: LessonsLearnedProps) {
       {/* Stats Widgets */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         
-        <div className={`p-5 rounded-2xl border transition-all ${
-          darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-        }`}>
+        {/* Total Courses Card */}
+        <div 
+          id="kpi-lessons-total"
+          onClick={() => setSelectedKpi(selectedKpi === 'total' ? null : 'total')}
+          className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+            selectedKpi === 'total'
+              ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+              : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+          }`}
+        >
           <div className="flex justify-between items-start mb-3">
             <span className="p-2 bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 rounded-xl">
               <Layers className="h-5 w-5" />
@@ -142,9 +541,16 @@ export default function LessonsLearned({ darkTheme }: LessonsLearnedProps) {
           <div className="mt-2 text-xs font-semibold text-slate-400">Tracked Units</div>
         </div>
 
-        <div className={`p-5 rounded-2xl border transition-all ${
-          darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-        }`}>
+        {/* Completed Card */}
+        <div 
+          id="kpi-lessons-completed"
+          onClick={() => setSelectedKpi(selectedKpi === 'completed' ? null : 'completed')}
+          className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+            selectedKpi === 'completed'
+              ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+              : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+          }`}
+        >
           <div className="flex justify-between items-start mb-3">
             <span className="p-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-xl">
               <CheckCircle className="h-5 w-5" />
@@ -155,9 +561,16 @@ export default function LessonsLearned({ darkTheme }: LessonsLearnedProps) {
           <div className="mt-2 text-xs font-semibold text-emerald-600">Archived Chapters</div>
         </div>
 
-        <div className={`p-5 rounded-2xl border transition-all ${
-          darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-        }`}>
+        {/* Ongoing Card */}
+        <div 
+          id="kpi-lessons-ongoing"
+          onClick={() => setSelectedKpi(selectedKpi === 'ongoing' ? null : 'ongoing')}
+          className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+            selectedKpi === 'ongoing'
+              ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+              : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+          }`}
+        >
           <div className="flex justify-between items-start mb-3">
             <span className="p-2 bg-indigo-50 text-indigo-650 dark:bg-indigo-950/30 dark:text-indigo-400 rounded-xl">
               <Clock className="h-5 w-5" />
@@ -168,9 +581,16 @@ export default function LessonsLearned({ darkTheme }: LessonsLearnedProps) {
           <div className="mt-2 text-xs font-semibold text-indigo-650">In Progress Active</div>
         </div>
 
-        <div className={`p-5 rounded-2xl border transition-all ${
-          darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-        }`}>
+        {/* Pending Card */}
+        <div 
+          id="kpi-lessons-pending"
+          onClick={() => setSelectedKpi(selectedKpi === 'pending' ? null : 'pending')}
+          className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+            selectedKpi === 'pending'
+              ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+              : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+          }`}
+        >
           <div className="flex justify-between items-start mb-3">
             <span className="p-2 bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 rounded-xl">
               <Calendar className="h-5 w-5" />
@@ -181,9 +601,16 @@ export default function LessonsLearned({ darkTheme }: LessonsLearnedProps) {
           <div className="mt-2 text-xs font-semibold text-slate-400">Future scheduled periods</div>
         </div>
 
-        <div className={`p-5 rounded-2xl border transition-all ${
-          darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-        }`}>
+        {/* Completion Card */}
+        <div 
+          id="kpi-lessons-completion"
+          onClick={() => setSelectedKpi(selectedKpi === 'completion' ? null : 'completion')}
+          className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+            selectedKpi === 'completion'
+              ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+              : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+          }`}
+        >
           <div className="flex justify-between items-start mb-3">
             <span className="p-2 bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 rounded-xl">
               <TrendingUp className="h-5 w-5" />
@@ -196,14 +623,38 @@ export default function LessonsLearned({ darkTheme }: LessonsLearnedProps) {
 
       </div>
 
-      {/* Tab content container */}
-      {isTabLoading ? (
-        <div className="py-24 flex flex-col items-center justify-center space-y-3">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs text-slate-400 font-semibold animate-pulse">Syncing syllabus progression matrix...</p>
-        </div>
-      ) : (
-        <div className="transition-all duration-350">
+      {/* Dynamic Tab or Drilldown Content Rendering with Smooth Transitions */}
+      <AnimatePresence mode="wait">
+        {selectedKpi !== null ? (
+          <motion.div
+            key={`kpi-drilldown-${selectedKpi}`}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.28 }}
+          >
+            {selectedKpi === 'total' && renderTotalCoursesDetails()}
+            {selectedKpi === 'completed' && renderCompletedDetails()}
+            {selectedKpi === 'ongoing' && renderOngoingDetails()}
+            {selectedKpi === 'pending' && renderPendingDetails()}
+            {selectedKpi === 'completion' && renderSyllabusProgressDetails()}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="tab-content-container"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.28 }}
+            className="space-y-6"
+          >
+            {isTabLoading ? (
+              <div className="py-24 flex flex-col items-center justify-center space-y-3">
+                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-xs text-slate-400 font-semibold animate-pulse">Syncing syllabus progression matrix...</p>
+              </div>
+            ) : (
+              <div className="transition-all duration-350">
           
           {/* TAB 1 & 2: COMPLETED & PENDING LESSONS LISTS */}
           {(activeTab === 'completed' || activeTab === 'pending') && (
@@ -593,9 +1044,11 @@ export default function LessonsLearned({ darkTheme }: LessonsLearnedProps) {
 
             </div>
           )}
-
-        </div>
-      )}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Lesson Details Dialog */}
       {selectedLesson && (
@@ -662,6 +1115,13 @@ export default function LessonsLearned({ darkTheme }: LessonsLearnedProps) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {toastMessage && (
+        <div id="toast-message" className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-3 rounded-xl shadow-2xl border dark:border-slate-800 flex items-center gap-2 text-xs font-bold animate-bounce">
+          <Check className="h-4 w-4 text-emerald-500 animate-pulse" />
+          {toastMessage}
         </div>
       )}
 

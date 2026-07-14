@@ -35,6 +35,8 @@ import SettingsPage from './components/SettingsPage';
 import LeaveManagement from './components/LeaveManagement';
 import StudentManagement from './components/StudentManagement';
 import LessonsLearned from './components/LessonsLearned';
+import NotificationCenter from './components/NotificationCenter';
+import { AnimatePresence } from 'motion/react';
 
 export default function App() {
   const [session, setSession] = useState<UserSession | null>(null);
@@ -43,6 +45,7 @@ export default function App() {
   const [darkTheme, setDarkTheme] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // Master State representing all DB modules
   const [state, setState] = useState<ERPDataState>({
@@ -257,6 +260,16 @@ export default function App() {
     }
   };
 
+  const handleDeleteNotification = async (id: string) => {
+    const resp = await fetch(`/api/notifications/${id}`, {
+      method: 'DELETE'
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      setState(data.state);
+    }
+  };
+
   const handleResetDB = async () => {
     const resp = await fetch('/api/reset', {
       method: 'POST'
@@ -337,8 +350,10 @@ export default function App() {
             {/* Quick notifications bell status panel */}
             <div className="relative">
               <button
-                onClick={() => setCurrentTab('dashboard')}
-                className="p-2 text-slate-400 hover:text-slate-655 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-850 transition-colors cursor-pointer"
+                id="header-notification-bell"
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className="p-2 text-slate-400 hover:text-slate-655 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-850 transition-colors cursor-pointer relative"
+                title="Open Notification Center"
               >
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
@@ -347,6 +362,21 @@ export default function App() {
                   </span>
                 )}
               </button>
+
+              <AnimatePresence>
+                {notificationsOpen && (
+                  <NotificationCenter
+                    notifications={state.notifications}
+                    onMarkRead={handleMarkNotificationRead}
+                    onMarkAllRead={handleMarkAllNotificationsRead}
+                    onDeleteNotification={handleDeleteNotification}
+                    onReviewLeave={handleReviewLeave}
+                    onNavigate={setCurrentTab}
+                    onClose={() => setNotificationsOpen(false)}
+                    darkTheme={darkTheme}
+                  />
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </header>

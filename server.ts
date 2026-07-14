@@ -242,28 +242,139 @@ function seedInitialData(): ERPDataState {
 
   const notifications: SystemNotification[] = [
     {
-      id: 'n_1',
-      title: 'Substitute Class Assigned Today',
-      message: 'Vikram Singh (History & Civics) is marked absent today. Substitutes have been generated automatically.',
+      id: 'n_leave_1',
+      title: 'Leave Request Pending Approval',
+      message: 'Priya Sharma requested Medical Leave due to dental emergency.',
       type: 'warning',
-      createdAt: new Date().toISOString(),
-      read: false
+      createdAt: '2026-05-25T08:15:00.000Z',
+      read: false,
+      category: 'leave',
+      priority: 'high',
+      relatedRecordId: 'lv_2',
+      meta: { teacherName: 'Priya Sharma', date: '25 May 2026', reason: 'Medical Leave', status: 'Pending Approval' }
     },
     {
-      id: 'n_2',
-      title: 'New Extra Class Request',
-      message: 'Sneha Kapoor has requested an extra Chemistry class on Wednesday for Grade 11-A.',
-      type: 'info',
-      createdAt: new Date().toISOString(),
-      read: false
+      id: 'n_att_1',
+      title: 'Teacher Attendance Not Submitted',
+      message: 'Daily classroom teacher attendance register has not been finalized yet.',
+      type: 'danger',
+      createdAt: '2026-05-25T08:00:00.000Z',
+      read: false,
+      category: 'attendance',
+      priority: 'high'
     },
     {
-      id: 'n_3',
-      title: 'New Leave Request From Faculty',
-      message: 'Priya Mehta has requested Casual Leave from 2026-05-27 to 2026-05-28.',
+      id: 'n_att_2',
+      title: 'Attendance Correction Requested',
+      message: 'Rohan Gupta requested morning session status correction.',
+      type: 'warning',
+      createdAt: '2026-05-24T15:30:00.000Z',
+      read: true,
+      category: 'attendance',
+      priority: 'medium'
+    },
+    {
+      id: 'n_stu_1',
+      title: 'New Student Admission Pending',
+      message: 'New student admission pending approval for registration dossier ID 1024.',
       type: 'info',
-      createdAt: new Date().toISOString(),
-      read: false
+      createdAt: '2026-05-25T07:10:00.000Z',
+      read: false,
+      category: 'student',
+      priority: 'medium',
+      meta: { studentName: 'Aarav Sharma' }
+    },
+    {
+      id: 'n_stu_2',
+      title: 'Student Profile Updated',
+      message: 'Student profile updated for Grade 9-A parents contact info.',
+      type: 'info',
+      createdAt: '2026-05-24T11:20:00.000Z',
+      read: true,
+      category: 'student',
+      priority: 'low'
+    },
+    {
+      id: 'n_acad_1',
+      title: 'Lesson Plan Completed Check',
+      message: 'Lesson plan not completed for Grade 10 Mathematics syllabus targets.',
+      type: 'warning',
+      createdAt: '2026-05-25T06:45:00.000Z',
+      read: false,
+      category: 'academic',
+      priority: 'medium'
+    },
+    {
+      id: 'n_acad_2',
+      title: 'Syllabus Behind Schedule Alert',
+      message: 'Science curriculum coverage is behind schedule by 3 classes.',
+      type: 'danger',
+      createdAt: '2026-05-24T09:30:00.000Z',
+      read: false,
+      category: 'academic',
+      priority: 'high'
+    },
+    {
+      id: 'n_sub_1',
+      title: 'Teacher Absent Today',
+      message: 'Vikram Singh (History & Civics) is absent. Substitute teacher required.',
+      type: 'danger',
+      createdAt: '2026-05-25T08:05:00.000Z',
+      read: false,
+      category: 'substitute',
+      priority: 'high',
+      meta: { teacherName: 'Vikram Singh' }
+    },
+    {
+      id: 'n_sub_2',
+      title: 'Assigned Substitute Accepted',
+      message: 'Pooja Chatterjee has accepted the physics substitution coverage slot.',
+      type: 'success',
+      createdAt: '2026-05-25T08:12:00.000Z',
+      read: false,
+      category: 'substitute',
+      priority: 'medium',
+      meta: { teacherName: 'Pooja Chatterjee' }
+    },
+    {
+      id: 'n_rep_1',
+      title: 'Monthly Report Ready',
+      message: 'School analytics and faculty attendance report generated.',
+      type: 'info',
+      createdAt: '2026-05-25T05:30:00.000Z',
+      read: false,
+      category: 'reports',
+      priority: 'low'
+    },
+    {
+      id: 'n_rep_2',
+      title: 'Attendance Below Target Warning',
+      message: 'Grade 9-B weekly presence falls below the 85% safety threshold.',
+      type: 'warning',
+      createdAt: '2026-05-24T14:45:00.000Z',
+      read: true,
+      category: 'reports',
+      priority: 'medium'
+    },
+    {
+      id: 'n_sys_1',
+      title: 'Backup Completed Successfully',
+      message: 'Database backup successfully archived and validated in AWS S3 storage.',
+      type: 'success',
+      createdAt: '2026-05-25T01:00:00.000Z',
+      read: false,
+      category: 'system',
+      priority: 'low'
+    },
+    {
+      id: 'n_sys_2',
+      title: 'New ERP Version Available',
+      message: 'New XYZ ERP system update v4.2.0 is available with security patches.',
+      type: 'info',
+      createdAt: '2026-05-24T10:00:00.000Z',
+      read: true,
+      category: 'system',
+      priority: 'medium'
     }
   ];
 
@@ -857,6 +968,14 @@ app.put('/api/notifications/:id', (req, res) => {
   if (item) {
     item.read = true;
   }
+  saveDB(db);
+  res.json({ state: db });
+});
+
+app.delete('/api/notifications/:id', (req, res) => {
+  const db = getDB();
+  const id = req.params.id;
+  db.notifications = db.notifications.filter(n => n.id !== id);
   saveDB(db);
   res.json({ state: db });
 });

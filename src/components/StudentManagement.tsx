@@ -16,8 +16,32 @@ import {
   Clock,
   BookOpen,
   Award,
-  Activity
+  Activity,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
+  Check,
+  TrendingDown
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  ResponsiveContainer, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  Tooltip, 
+  Legend, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  LineChart, 
+  Line, 
+  AreaChart, 
+  Area 
+} from 'recharts';
 
 interface Student {
   id: string;
@@ -29,7 +53,7 @@ interface Student {
   phone: string;
   email: string;
   attendancePct: number;
-  status: 'Active' | 'Inactive' | 'Suspended';
+  status: 'Active' | 'Inactive' | 'Suspended' | 'Transferred' | 'Alumni';
   enrolledDate: string;
   gpa: number;
 }
@@ -50,7 +74,9 @@ const SEED_STUDENTS: Student[] = [
   { id: 's9', name: 'Siddharth Rao', rollNo: '109', grade: 'Grade 12', section: 'B', guardianName: 'Madhava Rao', phone: '+91 98765 43218', email: 'siddharth.rao@xyz.edu', attendancePct: 88.0, status: 'Suspended', enrolledDate: '2022-06-01', gpa: 2.5 },
   { id: 's10', name: 'Riya Verma', rollNo: '110', grade: 'Grade 10', section: 'A', guardianName: 'Anil Verma', phone: '+91 98765 43219', email: 'riya.v@xyz.edu', attendancePct: 95.6, status: 'Active', enrolledDate: '2024-06-01', gpa: 3.4 },
   { id: 's11', name: 'Aditya Das', rollNo: '111', grade: 'Grade 12', section: 'A', guardianName: 'Bimal Das', phone: '+91 98765 43220', email: 'aditya.das@xyz.edu', attendancePct: 93.4, status: 'Active', enrolledDate: '2022-06-01', gpa: 3.5 },
-  { id: 's12', name: 'Sanya Kapoor', rollNo: '112', grade: 'Grade 9', section: 'A', guardianName: 'Sanjay Kapoor', phone: '+91 98765 43221', email: 'sanya.kapoor@xyz.edu', attendancePct: 97.0, status: 'Active', enrolledDate: '2025-06-01', gpa: 3.85 }
+  { id: 's12', name: 'Sanya Kapoor', rollNo: '112', grade: 'Grade 9', section: 'A', guardianName: 'Sanjay Kapoor', phone: '+91 98765 43221', email: 'sanya.kapoor@xyz.edu', attendancePct: 97.0, status: 'Active', enrolledDate: '2025-06-01', gpa: 3.85 },
+  { id: 's13', name: 'Ishaan Khattar', rollNo: '113', grade: 'Grade 12', section: 'A', guardianName: 'Neelam Khattar', phone: '+91 98765 43222', email: 'ishaan.k@xyz.edu', attendancePct: 85.0, status: 'Transferred', enrolledDate: '2022-06-01', gpa: 3.1 },
+  { id: 's14', name: 'Tara Sutaria', rollNo: '114', grade: 'Grade 12', section: 'B', guardianName: 'Piyush Sutaria', phone: '+91 98765 43223', email: 'tara.s@xyz.edu', attendancePct: 99.4, status: 'Alumni', enrolledDate: '2021-06-01', gpa: 3.95 }
 ];
 
 export default function StudentManagement({ darkTheme }: StudentManagementProps) {
@@ -63,15 +89,95 @@ export default function StudentManagement({ darkTheme }: StudentManagementProps)
   const [profileStudentId, setProfileStudentId] = useState<string>(SEED_STUDENTS[0].id);
   const [isTabLoading, setIsTabLoading] = useState(false);
 
+  // New states for interactive profile search and filtering
+  const [profileSearchQuery, setProfileSearchQuery] = useState('');
+  const [profileClassFilter, setProfileClassFilter] = useState('All');
+  const [profileSectionFilter, setProfileSectionFilter] = useState('All');
+  const [profileStatusFilter, setProfileStatusFilter] = useState('All');
+  const [profileQuickFilter, setProfileQuickFilter] = useState('All');
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+
+  const [selectedKpi, setSelectedKpi] = useState<'total' | 'active' | 'attendance' | 'gpa' | null>(null);
+
+  // States for KPI Total Enrolled drilldown
+  const [enrolledPage, setEnrolledPage] = useState(1);
+  const [enrolledSearch, setEnrolledSearch] = useState('');
+  const [enrolledClass, setEnrolledClass] = useState('All');
+  const [enrolledGender, setEnrolledGender] = useState('All');
+  const [enrolledStatus, setEnrolledStatus] = useState('All');
+  const [enrolledSort, setEnrolledSort] = useState('rollNo');
+
+  // States for KPI Active Status drilldown
+  const [activeClassFilter, setActiveClassFilter] = useState('All');
+
+  // Toast notifications for export actions
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   const handleTabChange = (tabId: typeof activeTab) => {
     setIsTabLoading(true);
     setActiveTab(tabId);
+    setSelectedKpi(null); // Reset KPI drill-down
     setTimeout(() => {
       setIsTabLoading(false);
     }, 250); // Small realistic delay for smooth feel
   };
 
   const selectedProfileStudent = students.find(s => s.id === profileStudentId) || students[0];
+
+  // Dynamic available sections based on chosen grade filter for profile view
+  const availableSections = React.useMemo(() => {
+    if (profileClassFilter === 'All') {
+      const sections = new Set(students.map(s => s.section));
+      return Array.from(sections).sort();
+    } else {
+      const matchingStudents = students.filter(s => s.grade === profileClassFilter);
+      const sections = new Set(matchingStudents.map(s => s.section));
+      return Array.from(sections).sort();
+    }
+  }, [students, profileClassFilter]);
+
+  // Sync profile section filter with available sections
+  React.useEffect(() => {
+    if (profileSectionFilter !== 'All' && !availableSections.includes(profileSectionFilter)) {
+      setProfileSectionFilter('All');
+    }
+  }, [availableSections, profileSectionFilter]);
+
+  // Advanced search and filters for profile list
+  const filteredProfileStudents = React.useMemo(() => {
+    return students.filter(s => {
+      // Class Filter
+      if (profileClassFilter !== 'All' && s.grade !== profileClassFilter) return false;
+      // Section Filter
+      if (profileSectionFilter !== 'All' && s.section !== profileSectionFilter) return false;
+      // Status Filter
+      if (profileStatusFilter !== 'All' && s.status !== profileStatusFilter) return false;
+
+      // Quick Chips Filter
+      if (profileQuickFilter === 'Active' && s.status !== 'Active') return false;
+      if (profileQuickFilter === 'Top Performers' && s.gpa < 3.7) return false;
+      if (profileQuickFilter === 'Low Attendance' && s.attendancePct >= 92) return false;
+      if (profileQuickFilter === 'Recent Admissions') {
+        const year = new Date(s.enrolledDate).getFullYear();
+        if (year < 2025) return false;
+      }
+
+      // Input Search box
+      if (profileSearchQuery.trim() !== '') {
+        const query = profileSearchQuery.toLowerCase();
+        const matchesName = s.name.toLowerCase().includes(query);
+        const matchesRoll = s.rollNo.toLowerCase().includes(query);
+        const matchesId = s.id.toLowerCase().includes(query);
+        if (!matchesName && !matchesRoll && !matchesId) return false;
+      }
+
+      return true;
+    });
+  }, [students, profileClassFilter, profileSectionFilter, profileStatusFilter, profileQuickFilter, profileSearchQuery]);
 
   // Filter computation
   const filteredStudents = students.filter((s) => {
@@ -101,6 +207,703 @@ export default function StudentManagement({ darkTheme }: StudentManagementProps)
     'Grade 9-A', 'Grade 9-B', 'Grade 10-A', 'Grade 10-B', 
     'Grade 11-A', 'Grade 11-B', 'Grade 12-A', 'Grade 12-B'
   ];
+
+  // Dynamic additional attributes for students in enrolled drilldown
+  const enrichedStudents = students.map((s, idx) => ({
+    ...s,
+    admissionNo: `ADM-2024-${s.rollNo}`,
+    admissionDate: s.enrolledDate,
+    gender: (idx % 2 === 0 ? 'Male' : 'Female') as 'Male' | 'Female',
+    age: 14 + (idx % 4),
+    photoUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(s.name)}`
+  }));
+
+  const handleExport = (type: string, kpiName: string) => {
+    showToast(`Successfully generated and downloaded ${kpiName} records as ${type.toUpperCase()}!`);
+  };
+
+  // Render Total Enrolled Dashboard drilldown
+  const renderTotalEnrolled = () => {
+    // 1. Filter
+    const query = enrolledSearch.toLowerCase();
+    const matchesQuery = (s: typeof enrichedStudents[0]) =>
+      s.name.toLowerCase().includes(query) ||
+      s.rollNo.includes(query) ||
+      s.admissionNo.toLowerCase().includes(query);
+
+    const matchesClass = (s: typeof enrichedStudents[0]) =>
+      enrolledClass === 'All' || `${s.grade}-${s.section}` === enrolledClass;
+
+    const matchesGender = (s: typeof enrichedStudents[0]) =>
+      enrolledGender === 'All' || s.gender === enrolledGender;
+
+    const matchesStatus = (s: typeof enrichedStudents[0]) =>
+      enrolledStatus === 'All' || s.status === enrolledStatus;
+
+    let filtered = enrichedStudents.filter(
+      (s) => matchesQuery(s) && matchesClass(s) && matchesGender(s) && matchesStatus(s)
+    );
+
+    // 2. Sort
+    filtered.sort((a, b) => {
+      if (enrolledSort === 'name') return a.name.localeCompare(b.name);
+      if (enrolledSort === 'gpa') return b.gpa - a.gpa;
+      if (enrolledSort === 'attendancePct') return b.attendancePct - a.attendancePct;
+      return a.rollNo.localeCompare(b.rollNo);
+    });
+
+    // 3. Paginate
+    const itemsPerPage = 5;
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const currentPageIndex = Math.min(enrolledPage, totalPages || 1);
+    const startIndex = (currentPageIndex - 1) * itemsPerPage;
+    const paginatedItems = filtered.slice(startIndex, startIndex + itemsPerPage);
+
+    const maleCount = enrichedStudents.filter(s => s.gender === 'Male').length;
+    const femaleCount = enrichedStudents.filter(s => s.gender === 'Female').length;
+
+    return (
+      <div className={`p-6 rounded-2xl border ${darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-md'} space-y-6`}>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 rounded-xl">
+                <Users className="h-4 w-4" />
+              </span>
+              <h3 className="text-lg font-bold">Total Enrolled Student Registry</h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Detailed list of all registered students with full profile fields.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => handleExport('csv', 'Enrolled Students')}
+              className="px-3 py-1.5 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </button>
+            <button 
+              onClick={() => handleExport('pdf', 'Enrolled Students')}
+              className="px-3 py-1.5 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5" /> Export PDF
+            </button>
+            <button 
+              onClick={() => setSelectedKpi(null)}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-colors cursor-pointer"
+              title="Close drilldown"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Summary Badges */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border dark:border-slate-800/85">
+            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Total Enrolled</p>
+            <p className="text-lg font-black text-blue-600 dark:text-blue-400 mt-0.5">{totalStudents}</p>
+          </div>
+          <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border dark:border-slate-800/85">
+            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Active standing</p>
+            <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{activeStudents}</p>
+          </div>
+          <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border dark:border-slate-800/85">
+            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Gender - Male</p>
+            <p className="text-lg font-black text-indigo-650 dark:text-indigo-400 mt-0.5">{maleCount} pupils</p>
+          </div>
+          <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border dark:border-slate-800/85">
+            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Gender - Female</p>
+            <p className="text-lg font-black text-purple-600 dark:text-purple-400 mt-0.5">{femaleCount} pupils</p>
+          </div>
+        </div>
+
+        {/* Filter Toolbar */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 p-4 bg-slate-50 dark:bg-slate-950/10 border dark:border-slate-800/50 rounded-xl">
+          <div className="relative md:col-span-2">
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Search by name, roll, or admission..."
+              value={enrolledSearch}
+              onChange={(e) => { setEnrolledSearch(e.target.value); setEnrolledPage(1); }}
+              className="w-full pl-9 pr-3 py-2 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <select 
+              value={enrolledClass} 
+              onChange={(e) => { setEnrolledClass(e.target.value); setEnrolledPage(1); }}
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="All">All Classes</option>
+              {classSectionsList.map(cls => (
+                <option key={cls} value={cls}>{cls}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select 
+              value={enrolledGender} 
+              onChange={(e) => { setEnrolledGender(e.target.value); setEnrolledPage(1); }}
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="All">All Genders</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
+          </div>
+          <div>
+            <select 
+              value={enrolledSort} 
+              onChange={(e) => setEnrolledSort(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-xl text-xs bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="rollNo">Sort: Roll Number</option>
+              <option value="name">Sort: Full Name</option>
+              <option value="gpa">Sort: Top GPA</option>
+              <option value="attendancePct">Sort: Attendance</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Data Table */}
+        <div className="border rounded-xl overflow-hidden dark:border-slate-800">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+              <thead className="bg-slate-50/50 dark:bg-slate-950/40">
+                <tr className="text-slate-400 font-bold uppercase tracking-wider">
+                  <th className="px-5 py-3 text-left">Roll No</th>
+                  <th className="px-5 py-3 text-left">Student</th>
+                  <th className="px-5 py-3 text-left">Class & Section</th>
+                  <th className="px-5 py-3 text-left">Admission No</th>
+                  <th className="px-5 py-3 text-left">Admission Date</th>
+                  <th className="px-5 py-3 text-left">Gender</th>
+                  <th className="px-5 py-3 text-left">Age</th>
+                  <th className="px-5 py-3 text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {paginatedItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-5 py-10 text-center text-slate-400">
+                      No matching student records found.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedItems.map((s) => (
+                    <tr key={s.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/10 transition-colors">
+                      <td className="px-5 py-3 font-mono font-bold text-slate-500">#{s.rollNo}</td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <img 
+                            src={s.photoUrl} 
+                            alt={s.name} 
+                            referrerPolicy="no-referrer"
+                            className="w-7 h-7 rounded-full bg-slate-100 border dark:border-slate-850"
+                            onError={(e) => {
+                              (e.target as any).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(s.name)}`;
+                            }}
+                          />
+                          <div>
+                            <p className="font-bold text-slate-800 dark:text-slate-100">{s.name}</p>
+                            <p className="text-[10px] text-slate-400">{s.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 font-semibold">{s.grade} - {s.section}</td>
+                      <td className="px-5 py-3 font-mono">{s.admissionNo}</td>
+                      <td className="px-5 py-3 text-slate-450 dark:text-slate-400">{s.admissionDate}</td>
+                      <td className="px-5 py-3 font-medium">{s.gender}</td>
+                      <td className="px-5 py-3">{s.age} yrs</td>
+                      <td className="px-5 py-3">
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
+                          s.status === 'Active' 
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' 
+                            : s.status === 'Inactive'
+                              ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 text-slate-400'
+                              : 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400'
+                        }`}>
+                          {s.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Pagination controls */}
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center pt-2">
+            <p className="text-xs text-slate-400">
+              Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{startIndex + 1}</span> to{' '}
+              <span className="font-semibold text-slate-700 dark:text-slate-200">
+                {Math.min(startIndex + itemsPerPage, filtered.length)}
+              </span>{' '}
+              of <span className="font-semibold text-slate-700 dark:text-slate-200">{filtered.length}</span> students
+            </p>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={() => setEnrolledPage(p => Math.max(1, p - 1))}
+                disabled={currentPageIndex === 1}
+                className="p-1.5 border dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 rounded-lg cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-xs font-semibold px-2">Page {currentPageIndex} of {totalPages}</span>
+              <button 
+                onClick={() => setEnrolledPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPageIndex === totalPages}
+                className="p-1.5 border dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 rounded-lg cursor-pointer"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render Active Status Drilldown View
+  const renderActiveStatus = () => {
+    const activeCount = enrichedStudents.filter(s => s.status === 'Active').length;
+    const inactiveCount = enrichedStudents.filter(s => s.status === 'Inactive').length;
+    const suspendedCount = enrichedStudents.filter(s => s.status === 'Suspended').length;
+    const alumniCount = 45;
+    const transferCount = 12;
+
+    const statusData = [
+      { name: 'Active Students', value: activeCount, color: '#10B981' },
+      { name: 'Inactive Students', value: inactiveCount, color: '#64748B' },
+      { name: 'Suspended Students', value: suspendedCount, color: '#EF4444' },
+      { name: 'Alumni Cohorts', value: alumniCount, color: '#3B82F6' },
+      { name: 'Transfer Students', value: transferCount, color: '#8B5CF6' }
+    ];
+
+    const matchesClass = (s: typeof enrichedStudents[0]) =>
+      activeClassFilter === 'All' || `${s.grade}-${s.section}` === activeClassFilter;
+
+    const filtered = enrichedStudents.filter(matchesClass);
+
+    return (
+      <div className={`p-6 rounded-2xl border ${darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-md'} space-y-6`}>
+        {/* Header */}
+        <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 rounded-lg">
+                <CheckCircle className="h-4 w-4" />
+              </span>
+              <h3 className="text-lg font-bold">Enrollment Status Distribution</h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Status demographics including alumni and external transfers.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => handleExport('csv', 'Status Distribution')}
+              className="px-3 py-1.5 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5" /> Export
+            </button>
+            <button 
+              onClick={() => setSelectedKpi(null)}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-colors cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Dashboard Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+          
+          {/* Pie Chart Representation */}
+          <div className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-950/20 border dark:border-slate-850 rounded-xl min-h-[300px]">
+            <p className="text-xs font-bold text-slate-500 mb-2">Cohort Status Distribution Ratio</p>
+            <div className="w-full h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {statusData.map((entry, idx) => (
+                      <Cell key={`cell-${idx}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: darkTheme ? '#0F172A' : '#FFFFFF',
+                      borderColor: darkTheme ? '#1E293B' : '#E2E8F0',
+                      borderRadius: '8px',
+                      fontSize: '11px'
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Legend */}
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-2 text-[10px] font-bold">
+              {statusData.map((entry, idx) => (
+                <div key={idx} className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                  <span className="text-slate-500">{entry.name} ({entry.value})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Status summaries and class-level filters */}
+          <div className="space-y-4">
+            <div className="p-4 bg-slate-50 dark:bg-slate-950/20 border dark:border-slate-800 rounded-xl space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-slate-400">Class Cohort Status Filter:</span>
+                <select 
+                  value={activeClassFilter} 
+                  onChange={(e) => setActiveClassFilter(e.target.value)}
+                  className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs bg-white dark:bg-slate-900 focus:outline-none"
+                >
+                  <option value="All">All Class Groups</option>
+                  {classSectionsList.map(cls => (
+                    <option key={cls} value={cls}>{cls}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="divide-y dark:divide-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <div className="flex justify-between py-2">
+                  <span className="text-slate-400">Active Standing:</span>
+                  <span className="text-emerald-600 font-extrabold">{filtered.filter(s => s.status === 'Active').length} pupils</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-slate-400">Inactive Standing:</span>
+                  <span className="text-slate-500 dark:text-slate-400">{filtered.filter(s => s.status === 'Inactive').length} pupils</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-slate-400">Suspended Standing:</span>
+                  <span className="text-red-500 font-bold">{filtered.filter(s => s.status === 'Suspended').length} pupils</span>
+                </div>
+                {activeClassFilter === 'All' && (
+                  <>
+                    <div className="flex justify-between py-2">
+                      <span className="text-slate-400">Alumni Registers:</span>
+                      <span className="text-blue-500 font-bold">45 graduates</span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="text-slate-400">External Transfers:</span>
+                      <span className="text-purple-500 font-bold">12 pupils</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 bg-blue-50/15 dark:bg-blue-950/10 border border-blue-500/10 rounded-xl text-xs space-y-2">
+              <p className="font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                <AlertCircle className="h-3.5 w-3.5" /> Standing Advisor Note
+              </p>
+              <p className="text-slate-500 dark:text-slate-400 leading-normal">
+                Alumni rosters track graduated students from the preceding academic years. Inactive students represent deferred admissions or long absences, which automatically raise parent inquiry logs.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  };
+
+  // Render Attendance Trends view
+  const renderAttendanceDetails = () => {
+    const monthlyData = [
+      { month: 'Jan', rate: 94.5 },
+      { month: 'Feb', rate: 95.8 },
+      { month: 'Mar', rate: 95.2 },
+      { month: 'Apr', rate: 96.8 },
+      { month: 'May', rate: averageAttendance }
+    ];
+
+    const classAttendanceData = classSectionsList.map(cls => {
+      const clsStudents = enrichedStudents.filter(s => `${s.grade}-${s.section}` === cls);
+      const avg = clsStudents.length > 0 
+        ? Math.round(clsStudents.reduce((acc, curr) => acc + curr.attendancePct, 0) / clsStudents.length * 10) / 10
+        : 95.0;
+      return { class: cls, rate: avg };
+    });
+
+    const lowestAttendanceStudents = [...enrichedStudents]
+      .sort((a, b) => a.attendancePct - b.attendancePct)
+      .slice(0, 3);
+
+    const highestAttendanceStudents = [...enrichedStudents]
+      .sort((a, b) => b.attendancePct - a.attendancePct)
+      .slice(0, 3);
+
+    return (
+      <div className={`p-6 rounded-2xl border ${darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-md'} space-y-6`}>
+        {/* Header */}
+        <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-650 dark:text-indigo-400 rounded-lg">
+                <TrendingUp className="h-4 w-4" />
+              </span>
+              <h3 className="text-lg font-bold">Attendance Trends & Student Standings</h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Comprehensive monthly, class-by-class metrics and pupil risk alerts.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => handleExport('csv', 'Attendance Analytics')}
+              className="px-3 py-1.5 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5" /> Export Report
+            </button>
+            <button 
+              onClick={() => setSelectedKpi(null)}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-colors cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="p-4 bg-slate-50 dark:bg-slate-950/20 border dark:border-slate-800 rounded-xl space-y-2">
+            <p className="text-xs font-bold text-slate-500">Monthly Roster Presence Trend (Cumulative %)</p>
+            <div className="w-full h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkTheme ? '#1E293B' : '#E2E8F0'} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <YAxis domain={[85, 100]} tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <Tooltip contentStyle={{ backgroundColor: darkTheme ? '#0F172A' : '#FFFFFF', borderColor: darkTheme ? '#1E293B' : '#E2E8F0', borderRadius: '8px', fontSize: '11px' }} />
+                  <Area type="monotone" dataKey="rate" stroke="#4F46E5" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRate)" name="Attendance Rate" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 dark:bg-slate-950/20 border dark:border-slate-800 rounded-xl space-y-2">
+            <p className="text-xs font-bold text-slate-500">Classwise Attendance standing (Average %)</p>
+            <div className="w-full h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={classAttendanceData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkTheme ? '#1E293B' : '#E2E8F0'} />
+                  <XAxis dataKey="class" tick={{ fontSize: 8 }} stroke="#94A3B8" />
+                  <YAxis domain={[80, 100]} tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <Tooltip contentStyle={{ backgroundColor: darkTheme ? '#0F172A' : '#FFFFFF', borderColor: darkTheme ? '#1E293B' : '#E2E8F0', borderRadius: '8px', fontSize: '11px' }} />
+                  <Bar dataKey="rate" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Avg Attendance" maxBarSize={30} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Highlight Tables */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-4 border dark:border-slate-800 rounded-xl">
+            <h4 className="text-xs font-black text-emerald-600 dark:text-emerald-400 mb-3 flex items-center gap-1">
+              <CheckCircle className="h-4 w-4" /> Outstanding Attendance (Top 3 Students)
+            </h4>
+            <div className="divide-y dark:divide-slate-800 space-y-2.5">
+              {highestAttendanceStudents.map((stu) => (
+                <div key={stu.id} className="flex justify-between items-center pt-2.5 text-xs font-semibold">
+                  <div>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{stu.name}</p>
+                    <p className="text-[10px] text-slate-400">{stu.grade} - {stu.section} (Roll #{stu.rollNo})</p>
+                  </div>
+                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 rounded font-black text-[11px]">{stu.attendancePct}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4 border dark:border-slate-800 rounded-xl">
+            <h4 className="text-xs font-black text-red-500 mb-3 flex items-center gap-1">
+              <AlertCircle className="h-4 w-4" /> Attendance Support Alerts (Needs Intervention)
+            </h4>
+            <div className="divide-y dark:divide-slate-800 space-y-2.5">
+              {lowestAttendanceStudents.map((stu) => (
+                <div key={stu.id} className="flex justify-between items-center pt-2.5 text-xs font-semibold">
+                  <div>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{stu.name}</p>
+                    <p className="text-[10px] text-slate-450 dark:text-red-400">{stu.grade} - {stu.section} • Parent: {stu.guardianName}</p>
+                  </div>
+                  <span className="px-2 py-0.5 bg-red-50 text-red-500 dark:bg-red-950/30 rounded font-black text-[11px]">{stu.attendancePct}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render GPA drilldown view
+  const renderGpaDetails = () => {
+    const semesterData = [
+      { semester: 'Term 1', gpa: 3.25 },
+      { semester: 'Term 2', gpa: 3.38 },
+      { semester: 'Term 3', gpa: 3.42 },
+      { semester: 'Term 4', gpa: avgGpa }
+    ];
+
+    const bracketData = [
+      { bracket: '3.8 - 4.0', count: enrichedStudents.filter(s => s.gpa >= 3.8).length },
+      { bracket: '3.5 - 3.79', count: enrichedStudents.filter(s => s.gpa >= 3.5 && s.gpa < 3.8).length },
+      { bracket: '3.0 - 3.49', count: enrichedStudents.filter(s => s.gpa >= 3.0 && s.gpa < 3.5).length },
+      { bracket: 'Below 3.0', count: enrichedStudents.filter(s => s.gpa < 3.0).length }
+    ];
+
+    const topRankedGpa = [...enrichedStudents].sort((a, b) => b.gpa - a.gpa);
+
+    return (
+      <div className={`p-6 rounded-2xl border ${darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-md'} space-y-6`}>
+        {/* Header */}
+        <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-amber-100 dark:bg-amber-950 text-amber-600 rounded-lg">
+                <GraduationCap className="h-4 w-4" />
+              </span>
+              <h3 className="text-lg font-bold">Academic GPA Leaderboards & Charts</h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Track cohort averages, grade point distributions, and overall class standing indexes.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => handleExport('csv', 'GPA Ranking')}
+              className="px-3 py-1.5 border dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5" /> Export GPA List
+            </button>
+            <button 
+              onClick={() => setSelectedKpi(null)}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-colors cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="p-4 bg-slate-50 dark:bg-slate-950/20 border dark:border-slate-800 rounded-xl space-y-2">
+            <p className="text-xs font-bold text-slate-500">Academic Term Cumulative GPA Progression</p>
+            <div className="w-full h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={semesterData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorGpa" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#D97706" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#D97706" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkTheme ? '#1E293B' : '#E2E8F0'} />
+                  <XAxis dataKey="semester" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <YAxis domain={[2.0, 4.0]} tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <Tooltip contentStyle={{ backgroundColor: darkTheme ? '#0F172A' : '#FFFFFF', borderColor: darkTheme ? '#1E293B' : '#E2E8F0', borderRadius: '8px', fontSize: '11px' }} />
+                  <Area type="monotone" dataKey="gpa" stroke="#D97706" strokeWidth={2.5} fillOpacity={1} fill="url(#colorGpa)" name="Cumulative GPA" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 dark:bg-slate-950/20 border dark:border-slate-800 rounded-xl space-y-2">
+            <p className="text-xs font-bold text-slate-500">Cohort Distribution Brackets (Pupils count)</p>
+            <div className="w-full h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={bracketData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkTheme ? '#1E293B' : '#E2E8F0'} />
+                  <XAxis dataKey="bracket" tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <YAxis tick={{ fontSize: 10 }} stroke="#94A3B8" />
+                  <Tooltip contentStyle={{ backgroundColor: darkTheme ? '#0F172A' : '#FFFFFF', borderColor: darkTheme ? '#1E293B' : '#E2E8F0', borderRadius: '8px', fontSize: '11px' }} />
+                  <Bar dataKey="count" fill="#F59E0B" radius={[4, 4, 0, 0]} name="Students Count" maxBarSize={30} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Details */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-4 border dark:border-slate-800 rounded-xl md:col-span-1">
+            <h4 className="text-xs font-black text-amber-600 dark:text-amber-400 mb-3 flex items-center gap-1">
+              <Award className="h-4 w-4" /> Subject-wise Average GPAs
+            </h4>
+            <div className="space-y-3.5 text-xs font-semibold">
+              {[
+                { subject: 'Mathematics', score: '3.68', pct: 92 },
+                { subject: 'Physics & Lab', score: '3.42', pct: 85 },
+                { subject: 'Chemistry', score: '3.55', pct: 88 },
+                { subject: 'Biology & Life Science', score: '3.62', pct: 90 },
+                { subject: 'English & Literature', score: '3.75', pct: 94 }
+              ].map((sub, index) => (
+                <div key={index} className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span>{sub.subject}</span>
+                    <span className="text-amber-600 font-extrabold">{sub.score} / 4.0</span>
+                  </div>
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-amber-500 h-full rounded-full" 
+                      style={{ width: `${sub.pct}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4 border dark:border-slate-800 rounded-xl md:col-span-2">
+            <h4 className="text-xs font-black text-blue-600 dark:text-blue-400 mb-3 flex items-center gap-1">
+              <Activity className="h-4 w-4" /> Top Student Honor Roll Leaderboard (GPA Rankings)
+            </h4>
+            <div className="max-h-[220px] overflow-y-auto divide-y dark:divide-slate-800 pr-1 text-xs">
+              {topRankedGpa.map((stu, index) => (
+                <div key={stu.id} className="flex justify-between items-center py-2 font-semibold">
+                  <div className="flex items-center gap-2.5">
+                    <span className={`w-5 h-5 rounded-md flex items-center justify-center font-black text-[10px] ${
+                      index === 0 ? 'bg-amber-100 text-amber-700' :
+                      index === 1 ? 'bg-slate-100 text-slate-700' :
+                      index === 2 ? 'bg-orange-50 text-orange-700' : 'text-slate-400'
+                    }`}>
+                      #{index + 1}
+                    </span>
+                    <div>
+                      <p className="font-bold text-slate-800 dark:text-slate-100">{stu.name}</p>
+                      <p className="text-[9px] text-slate-400">{stu.grade} - Section {stu.section} (Roll #{stu.rollNo})</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-blue-600 dark:text-blue-400 font-mono">{stu.gpa.toFixed(2)}</span>
+                    <span className="text-[10px] text-slate-400">/ 4.00</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 font-sans">
@@ -160,9 +963,16 @@ export default function StudentManagement({ darkTheme }: StudentManagementProps)
             <div className="space-y-6">
               {/* KPI Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className={`p-5 rounded-2xl border transition-all ${
-                  darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-                }`}>
+                {/* Enrolled Card */}
+                <div 
+                  id="kpi-student-total"
+                  onClick={() => setSelectedKpi(selectedKpi === 'total' ? null : 'total')}
+                  className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+                    selectedKpi === 'total'
+                      ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+                      : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+                  }`}
+                >
                   <div className="flex justify-between items-start mb-3">
                     <span className="p-2 bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 rounded-xl">
                       <Users className="h-5 w-5" />
@@ -173,9 +983,16 @@ export default function StudentManagement({ darkTheme }: StudentManagementProps)
                   <div className="mt-2 text-xs font-semibold text-slate-400">Active School Cohort</div>
                 </div>
 
-                <div className={`p-5 rounded-2xl border transition-all ${
-                  darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-                }`}>
+                {/* Active Card */}
+                <div 
+                  id="kpi-student-active"
+                  onClick={() => setSelectedKpi(selectedKpi === 'active' ? null : 'active')}
+                  className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+                    selectedKpi === 'active'
+                      ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+                      : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+                  }`}
+                >
                   <div className="flex justify-between items-start mb-3">
                     <span className="p-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-xl">
                       <CheckCircle className="h-5 w-5" />
@@ -186,9 +1003,16 @@ export default function StudentManagement({ darkTheme }: StudentManagementProps)
                   <div className="mt-2 text-xs font-semibold text-emerald-600">Good standing status</div>
                 </div>
 
-                <div className={`p-5 rounded-2xl border transition-all ${
-                  darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-                }`}>
+                {/* Attendance Card */}
+                <div 
+                  id="kpi-student-attendance"
+                  onClick={() => setSelectedKpi(selectedKpi === 'attendance' ? null : 'attendance')}
+                  className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+                    selectedKpi === 'attendance'
+                      ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+                      : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+                  }`}
+                >
                   <div className="flex justify-between items-start mb-3">
                     <span className="p-2 bg-indigo-50 text-indigo-650 dark:bg-indigo-950/30 dark:text-indigo-400 rounded-xl">
                       <TrendingUp className="h-5 w-5" />
@@ -199,9 +1023,16 @@ export default function StudentManagement({ darkTheme }: StudentManagementProps)
                   <div className="mt-2 text-xs font-semibold text-slate-400">Target threshold: 92%</div>
                 </div>
 
-                <div className={`p-5 rounded-2xl border transition-all ${
-                  darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-                }`}>
+                {/* GPA Card */}
+                <div 
+                  id="kpi-student-gpa"
+                  onClick={() => setSelectedKpi(selectedKpi === 'gpa' ? null : 'gpa')}
+                  className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+                    selectedKpi === 'gpa'
+                      ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+                      : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+                  }`}
+                >
                   <div className="flex justify-between items-start mb-3">
                     <span className="p-2 bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 rounded-xl">
                       <GraduationCap className="h-5 w-5" />
@@ -213,8 +1044,17 @@ export default function StudentManagement({ darkTheme }: StudentManagementProps)
                 </div>
               </div>
 
-              {/* Two Columns: Stats breakdown & Records Table */}
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Dynamic content rendering with smooth motion transitions */}
+              <AnimatePresence mode="wait">
+                {selectedKpi === null ? (
+                  <motion.div
+                    key="original-demographics-table"
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    transition={{ duration: 0.28 }}
+                    className="grid grid-cols-1 lg:grid-cols-4 gap-6"
+                  >
                 
                 {/* Left Column: Demographics */}
                 <div className="lg:col-span-1 space-y-6">
@@ -385,140 +1225,495 @@ export default function StudentManagement({ darkTheme }: StudentManagementProps)
                   </div>
                 </div>
 
-              </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key={`kpi-drilldown-${selectedKpi}`}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    transition={{ duration: 0.28 }}
+                  >
+                    {selectedKpi === 'total' && renderTotalEnrolled()}
+                    {selectedKpi === 'active' && renderActiveStatus()}
+                    {selectedKpi === 'attendance' && renderAttendanceDetails()}
+                    {selectedKpi === 'gpa' && renderGpaDetails()}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 
           {/* TAB 2: STUDENT PROFILE */}
-          {activeTab === 'profile' && (
-            <div className={`p-6 rounded-2xl border ${
-              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-            }`}>
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b dark:border-slate-800 mb-6">
-                <div>
-                  <h3 className="text-base font-bold">Detailed Student Profiles</h3>
-                  <p className="text-xs text-slate-400 font-medium">Select any enrolled pupil below to review their full structural school record.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Pupil:</label>
-                  <select 
-                    value={profileStudentId}
-                    onChange={(e) => setProfileStudentId(e.target.value)}
-                    className="px-3 py-1.5 border border-slate-250 rounded-xl text-xs font-semibold focus:outline-none bg-white dark:bg-slate-900"
-                  >
-                    {students.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} (Roll #{s.rollNo})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+          {activeTab === 'profile' && (() => {
+            const highlightMatch = (text: string, query: string) => {
+              if (!query.trim()) return <span>{text}</span>;
+              try {
+                const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`(${escaped})`, 'gi');
+                const parts = text.split(regex);
+                return (
+                  <span>
+                    {parts.map((part, i) => 
+                      regex.test(part) ? (
+                        <mark key={i} className="bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 rounded px-0.5 font-bold">
+                          {part}
+                        </mark>
+                      ) : (
+                        part
+                      )
+                    )}
+                  </span>
+                );
+              } catch (e) {
+                return <span>{text}</span>;
+              }
+            };
 
-              {/* Profile Card Grid Layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* Visual Avatar Banner */}
-                <div className="lg:col-span-1 p-6 rounded-2xl bg-slate-50 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-850 text-center flex flex-col items-center">
-                  <div className="w-24 h-24 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-black text-4xl flex items-center justify-center mb-4 border-2 border-white shadow-md">
-                    {selectedProfileStudent.name.split(' ').map(n => n[0]).join('')}
+            return (
+              <div className={`p-6 rounded-2xl border ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}>
+                {/* Header */}
+                <div className="pb-4 border-b dark:border-slate-800 mb-6 flex justify-between items-center">
+                  <div>
+                    <h3 className="text-base font-bold">Detailed Student Profiles</h3>
+                    <p className="text-xs text-slate-400 font-medium">Search or filter below to retrieve any pupil's full structural school record.</p>
                   </div>
-                  <h4 className="font-extrabold text-lg text-slate-850 dark:text-slate-100">{selectedProfileStudent.name}</h4>
-                  <p className="text-xs font-bold text-slate-400 font-mono mt-1">Roll ID: #{selectedProfileStudent.rollNo}</p>
+                  <div className="text-xs font-mono text-slate-450 dark:text-slate-500 hidden sm:block">
+                    Matching: <span className="font-bold text-blue-600 dark:text-blue-400">{filteredProfileStudents.length}</span> students
+                  </div>
+                </div>
+
+                {/* Search & Filters Panel */}
+                <div className="p-5 rounded-2xl border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 mb-6 space-y-4">
                   
-                  <div className="mt-4 flex flex-wrap justify-center gap-1.5">
-                    <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 text-[10px] font-black rounded-lg uppercase">
-                      {selectedProfileStudent.grade}
-                    </span>
-                    <span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 text-[10px] font-black rounded-lg uppercase">
-                      Section {selectedProfileStudent.section}
-                    </span>
-                    <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 text-[10px] font-black rounded-lg uppercase">
-                      {selectedProfileStudent.status}
-                    </span>
+                  {/* Search Bar & Dropdowns Row */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+                    
+                    {/* Search Box */}
+                    <div className="lg:col-span-6 relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-450 dark:text-slate-550">
+                        <Search className="h-4 w-4" />
+                      </div>
+                      <input
+                        type="text"
+                        id="profile-search-input"
+                        value={profileSearchQuery}
+                        onChange={(e) => setProfileSearchQuery(e.target.value)}
+                        placeholder="Search student by Name, Roll Number, Admission No..."
+                        className="block w-full pl-10 pr-10 py-2 border border-slate-200 dark:border-slate-800 rounded-xl leading-5 bg-white dark:bg-slate-900 text-slate-850 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs font-semibold transition-all shadow-sm"
+                      />
+                      {profileSearchQuery && (
+                        <button
+                          onClick={() => setProfileSearchQuery('')}
+                          className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-655 cursor-pointer"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Class Filter Dropdown */}
+                    <div className="lg:col-span-2">
+                      <select
+                        value={profileClassFilter}
+                        onChange={(e) => {
+                          setProfileClassFilter(e.target.value);
+                          setProfileQuickFilter('All');
+                        }}
+                        className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-850 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                      >
+                        <option value="All">All Classes</option>
+                        <option value="Grade 6">Grade 6</option>
+                        <option value="Grade 7">Grade 7</option>
+                        <option value="Grade 8">Grade 8</option>
+                        <option value="Grade 9">Grade 9</option>
+                        <option value="Grade 10">Grade 10</option>
+                        <option value="Grade 11">Grade 11</option>
+                        <option value="Grade 12">Grade 12</option>
+                      </select>
+                    </div>
+
+                    {/* Section Filter Dropdown */}
+                    <div className="lg:col-span-2">
+                      <select
+                        value={profileSectionFilter}
+                        onChange={(e) => {
+                          setProfileSectionFilter(e.target.value);
+                          setProfileQuickFilter('All');
+                        }}
+                        className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-850 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                      >
+                        <option value="All">All Sections</option>
+                        {availableSections.map((sec) => (
+                          <option key={sec} value={sec}>{sec}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Status Filter Dropdown */}
+                    <div className="lg:col-span-2">
+                      <select
+                        value={profileStatusFilter}
+                        onChange={(e) => {
+                          setProfileStatusFilter(e.target.value);
+                          setProfileQuickFilter('All');
+                        }}
+                        className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-850 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                      >
+                        <option value="All">All Students</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Transferred">Transferred</option>
+                        <option value="Alumni">Alumni</option>
+                        <option value="Suspended">Suspended</option>
+                      </select>
+                    </div>
+
                   </div>
 
-                  <div className="w-full border-t dark:border-slate-800 my-5"></div>
+                  {/* Quick Filters - Badges/Chips */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800 text-xs select-none">
+                    <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px] mr-1">Quick Filters:</span>
+                    {[
+                      { id: 'All', label: 'All Students', color: 'blue' },
+                      { id: 'Active', label: 'Active', color: 'emerald' },
+                      { id: 'Top Performers', label: 'Top Performers', color: 'amber' },
+                      { id: 'Low Attendance', label: 'Low Attendance', color: 'red' },
+                      { id: 'Recent Admissions', label: 'Recent Admissions', color: 'purple' }
+                    ].map((chip) => {
+                      const isSelected = profileQuickFilter === chip.id;
+                      const baseStyle = "px-3 py-1 rounded-full text-[11px] font-black cursor-pointer transition-all border";
+                      let activeStyles = "";
+                      let inactiveStyles = "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-755 dark:text-slate-300 dark:hover:bg-slate-700";
 
-                  <div className="w-full space-y-3.5 text-left text-xs font-medium">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Class Advisor:</span>
-                      <span className="font-bold">Prof. Sneha Verma</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Extracurriculars:</span>
-                      <span className="font-bold text-blue-600 dark:text-blue-400">School Chess Club</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Medical Notes:</span>
-                      <span className="font-bold text-slate-500">None Recorded</span>
-                    </div>
+                      if (isSelected) {
+                        if (chip.color === 'blue') activeStyles = "bg-blue-600 border-blue-650 text-white shadow-sm shadow-blue-500/20";
+                        else if (chip.color === 'emerald') activeStyles = "bg-emerald-600 border-emerald-650 text-white shadow-sm shadow-emerald-500/20";
+                        else if (chip.color === 'amber') activeStyles = "bg-amber-500 border-amber-550 text-white shadow-sm shadow-amber-500/20";
+                        else if (chip.color === 'red') activeStyles = "bg-red-650 border-red-700 text-white shadow-sm shadow-red-500/20";
+                        else if (chip.color === 'purple') activeStyles = "bg-purple-650 border-purple-700 text-white shadow-sm shadow-purple-500/20";
+                      }
+
+                      return (
+                        <button
+                          key={chip.id}
+                          onClick={() => {
+                            setProfileQuickFilter(chip.id);
+                            if (chip.id === 'All') {
+                              setProfileClassFilter('All');
+                              setProfileSectionFilter('All');
+                              setProfileStatusFilter('All');
+                              setProfileSearchQuery('');
+                            } else if (chip.id === 'Active') {
+                              setProfileStatusFilter('Active');
+                              setProfileClassFilter('All');
+                              setProfileSectionFilter('All');
+                              setProfileSearchQuery('');
+                            } else {
+                              setProfileClassFilter('All');
+                              setProfileSectionFilter('All');
+                              setProfileStatusFilter('All');
+                              setProfileSearchQuery('');
+                            }
+                          }}
+                          className={`${baseStyle} ${isSelected ? activeStyles : inactiveStyles}`}
+                        >
+                          {chip.label}
+                        </button>
+                      );
+                    })}
                   </div>
+
                 </div>
 
-                {/* Right detailed stats and contact logs */}
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
-                      <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Academic Standing Index</p>
-                      <div className="flex items-baseline gap-1.5 mt-1">
-                        <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{selectedProfileStudent.gpa.toFixed(2)}</p>
-                        <span className="text-xs text-slate-400">Cumulative GPA</span>
-                      </div>
-                      <div className="mt-2 text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
-                        <Award className="h-3.5 w-3.5" /> High standing bracket
-                      </div>
+                {/* Main Workspace: 2-Column Responsive Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  
+                  {/* Left Column: Matching Search Results list */}
+                  <div className="lg:col-span-4 border dark:border-slate-800 rounded-2xl p-4 space-y-3 bg-slate-50/20 dark:bg-slate-950/10">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-450 pb-2 border-b dark:border-slate-800">
+                      <span>Search Results ({filteredProfileStudents.length})</span>
+                      {filteredProfileStudents.length > 0 && (
+                        <span className="text-[10px] text-slate-400 font-normal">Click to review profile</span>
+                      )}
                     </div>
 
-                    <div className="p-4 rounded-xl border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
-                      <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Attendance Index</p>
-                      <div className="flex items-baseline gap-1.5 mt-1">
-                        <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{selectedProfileStudent.attendancePct}%</p>
-                        <span className="text-xs text-slate-400">Term Presence Rate</span>
-                      </div>
-                      <div className="mt-2 text-[11px] font-semibold text-slate-400">
-                        {selectedProfileStudent.attendancePct >= 92 ? 'Excellent attendance' : 'Needs attention'}
-                      </div>
+                    <div className="max-h-[34.5rem] overflow-y-auto space-y-2.5 pr-1.5 scrollbar-thin">
+                      {filteredProfileStudents.length === 0 ? (
+                        <div className="py-12 px-4 text-center flex flex-col items-center justify-center space-y-2.5">
+                          <span className="text-3xl text-slate-400">🔍</span>
+                          <h4 className="text-xs font-bold text-slate-900 dark:text-white">No student found</h4>
+                          <p className="text-[11px] text-slate-400 font-semibold leading-normal max-w-[14rem]">
+                            No pupils match your search query or filters.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setProfileSearchQuery('');
+                              setProfileClassFilter('All');
+                              setProfileSectionFilter('All');
+                              setProfileStatusFilter('All');
+                              setProfileQuickFilter('All');
+                            }}
+                            className="px-3 py-1.5 text-[10px] font-extrabold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors cursor-pointer shadow-sm"
+                          >
+                            Reset Filters
+                          </button>
+                        </div>
+                      ) : (
+                        filteredProfileStudents.map((s) => {
+                          const isSelected = s.id === profileStudentId;
+                          const statusColor = s.status === 'Active' 
+                            ? 'bg-emerald-500' 
+                            : s.status === 'Inactive' 
+                              ? 'bg-slate-400' 
+                              : s.status === 'Suspended'
+                                ? 'bg-red-500'
+                                : s.status === 'Transferred'
+                                  ? 'bg-purple-500'
+                                  : 'bg-blue-500'; // Alumni
+
+                          return (
+                            <div
+                              key={s.id}
+                              onClick={() => {
+                                if (!isSelected) {
+                                  setIsProfileLoading(true);
+                                  setProfileStudentId(s.id);
+                                  setTimeout(() => {
+                                    setIsProfileLoading(false);
+                                  }, 280);
+                                }
+                              }}
+                              className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col gap-1.5 select-none ${
+                                isSelected
+                                  ? 'bg-blue-50/15 border-blue-600 shadow-md ring-1 ring-blue-600/50 dark:bg-blue-950/20'
+                                  : 'bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start gap-1">
+                                <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                                  {highlightMatch(s.name, profileSearchQuery)}
+                                </h4>
+                                <span className="text-[9px] text-slate-400 font-mono shrink-0 font-bold">
+                                  #{highlightMatch(s.rollNo, profileSearchQuery)}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
+                                <span>
+                                  {s.grade} • Sec {s.section}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${statusColor}`} />
+                                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-450">{s.status}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
 
-                  <div className="p-5 rounded-xl border dark:border-slate-800">
-                    <h5 className="font-extrabold text-sm mb-3.5 text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                      <User className="h-4 w-4 text-blue-600" />
-                      Registry Demographics & Guardian
-                    </h5>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
-                      <div className="space-y-1">
-                        <span className="text-slate-400 block text-[11px]">Primary Guardian Name:</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">{selectedProfileStudent.guardianName}</span>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-slate-400 block text-[11px]">Guardian Phone Number:</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">{selectedProfileStudent.phone}</span>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-slate-400 block text-[11px]">Primary Email Contact:</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">{selectedProfileStudent.email}</span>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-slate-400 block text-[11px]">Enrollment Date:</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">{selectedProfileStudent.enrolledDate}</span>
-                      </div>
-                    </div>
+                  {/* Right Column: Dynamic Student Profile Display */}
+                  <div className="lg:col-span-8">
+                    <AnimatePresence mode="wait">
+                      {isProfileLoading ? (
+                        <motion.div
+                          key="skeleton-pulse"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          {/* Profile Loading Skeleton */}
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
+                            {/* Skeleton Left Card */}
+                            <div className="lg:col-span-1 p-6 rounded-2xl bg-slate-100/40 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-850 text-center flex flex-col items-center space-y-4">
+                              <div className="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-800" />
+                              <div className="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                              <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                              <div className="flex gap-2 w-full justify-center">
+                                <div className="h-6 w-16 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                                <div className="h-6 w-16 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                              </div>
+                              <div className="w-full border-t dark:border-slate-800 my-5"></div>
+                              <div className="w-full space-y-3">
+                                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-lg w-full" />
+                                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-lg w-5/6" />
+                                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-lg w-4/6" />
+                              </div>
+                            </div>
+
+                            {/* Skeleton Right Cards */}
+                            <div className="lg:col-span-2 space-y-6">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="p-4 rounded-xl border dark:border-slate-800 bg-slate-100/20 dark:bg-slate-900/10 space-y-3">
+                                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-1/3" />
+                                  <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-1/2" />
+                                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-2/3" />
+                                </div>
+                                <div className="p-4 rounded-xl border dark:border-slate-800 bg-slate-100/20 dark:bg-slate-900/10 space-y-3">
+                                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-1/3" />
+                                  <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-1/2" />
+                                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-2/3" />
+                                </div>
+                              </div>
+
+                              <div className="p-5 rounded-xl border dark:border-slate-800 space-y-4">
+                                <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/4" />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  {[1, 2, 3, 4].map(n => (
+                                    <div key={n} className="space-y-2">
+                                      <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-1/3" />
+                                      <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-2/3" />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="p-5 rounded-xl border dark:border-slate-800 bg-slate-150/5 dark:bg-slate-900/5 space-y-2">
+                                <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/3" />
+                                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-full" />
+                                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-5/6" />
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key={selectedProfileStudent.id}
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -15 }}
+                          transition={{ duration: 0.28, ease: 'easeOut' }}
+                          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+                        >
+                          {/* Visual Avatar Banner */}
+                          <div className="lg:col-span-1 p-6 rounded-2xl bg-slate-50 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-850 text-center flex flex-col items-center">
+                            <div className="w-24 h-24 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-black text-4xl flex items-center justify-center mb-4 border-2 border-white shadow-md">
+                              {selectedProfileStudent.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                            <h4 className="font-extrabold text-lg text-slate-850 dark:text-slate-100 leading-tight">{selectedProfileStudent.name}</h4>
+                            <p className="text-xs font-bold text-slate-400 font-mono mt-1.5">Roll ID: #{selectedProfileStudent.rollNo}</p>
+                            
+                            <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+                              <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 text-[10px] font-black rounded-lg uppercase">
+                                {selectedProfileStudent.grade}
+                              </span>
+                              <span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 text-[10px] font-black rounded-lg uppercase">
+                                Section {selectedProfileStudent.section}
+                              </span>
+                              <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase ${
+                                selectedProfileStudent.status === 'Active' 
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' 
+                                  : selectedProfileStudent.status === 'Inactive'
+                                    ? 'bg-slate-100 text-slate-600 dark:bg-slate-800'
+                                    : selectedProfileStudent.status === 'Suspended'
+                                      ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400'
+                                      : selectedProfileStudent.status === 'Transferred'
+                                        ? 'bg-purple-50 text-purple-750 dark:bg-purple-950/30 dark:text-purple-400'
+                                        : 'bg-blue-50 text-blue-750 dark:bg-blue-950/30 dark:text-blue-400' // Alumni
+                              }`}>
+                                {selectedProfileStudent.status}
+                              </span>
+                            </div>
+
+                            <div className="w-full border-t dark:border-slate-800 my-5"></div>
+
+                            <div className="w-full space-y-3.5 text-left text-xs font-medium">
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Class Advisor:</span>
+                                <span className="font-bold">Prof. Sneha Verma</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Extracurriculars:</span>
+                                <span className="font-bold text-blue-600 dark:text-blue-400">School Chess Club</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Medical Notes:</span>
+                                <span className="font-bold text-slate-500">None Recorded</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right detailed stats and contact logs */}
+                          <div className="lg:col-span-2 space-y-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="p-4 rounded-xl border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
+                                <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Academic Standing Index</p>
+                                <div className="flex items-baseline gap-1.5 mt-1">
+                                  <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{selectedProfileStudent.gpa.toFixed(2)}</p>
+                                  <span className="text-xs text-slate-400">Cumulative GPA</span>
+                                </div>
+                                <div className="mt-2 text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                                  <Award className="h-3.5 w-3.5" /> {selectedProfileStudent.gpa >= 3.6 ? 'High standing bracket' : 'Satisfactory standing bracket'}
+                                </div>
+                              </div>
+
+                              <div className="p-4 rounded-xl border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
+                                <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Attendance Index</p>
+                                <div className="flex items-baseline gap-1.5 mt-1">
+                                  <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{selectedProfileStudent.attendancePct}%</p>
+                                  <span className="text-xs text-slate-400">Term Presence Rate</span>
+                                </div>
+                                <div className="mt-2 text-[11px] font-semibold text-slate-400">
+                                  {selectedProfileStudent.attendancePct >= 92 ? 'Excellent attendance' : 'Needs attention'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-5 rounded-xl border dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                              <h5 className="font-extrabold text-sm mb-3.5 text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                <User className="h-4 w-4 text-blue-600" />
+                                Registry Demographics & Guardian
+                              </h5>
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
+                                <div className="space-y-1">
+                                  <span className="text-slate-400 block text-[11px]">Primary Guardian Name:</span>
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedProfileStudent.guardianName}</span>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-slate-400 block text-[11px]">Guardian Phone Number:</span>
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedProfileStudent.phone}</span>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-slate-400 block text-[11px]">Primary Email Contact:</span>
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedProfileStudent.email}</span>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-slate-400 block text-[11px]">Enrollment Date:</span>
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedProfileStudent.enrolledDate}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-5 rounded-xl border dark:border-slate-800 bg-blue-50/15 dark:bg-blue-950/10">
+                              <h5 className="font-extrabold text-sm mb-2 flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                                <CheckCircle className="h-4 w-4" /> Academic Remarks & Counselor Advisories
+                              </h5>
+                              <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400 font-medium">
+                                {selectedProfileStudent.gpa >= 3.7 
+                                  ? '"Student exhibits robust computational logic and mathematical proficiency. Demonstrates excellent punctuality, holds high scores across quarterly evaluations, and displays supportive peer leadership in class laboratory assignments. Highly recommended for advanced AP streams."'
+                                  : selectedProfileStudent.gpa >= 3.0
+                                    ? '"Student has made positive academic progress this term. Class attendance is consistent and they engage actively in team modules. Focus on spelling and advanced proofreading will consolidate their B-grade threshold into higher brackets."'
+                                    : '"Student shows good practical aptitude but has missed multiple assignment deadlines due to absences. Requires supportive counselor advisories and structured math laboratory practice to recover missing grade thresholds."'}
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
 
-                  <div className="p-5 rounded-xl border dark:border-slate-800 bg-blue-50/15 dark:bg-blue-950/10">
-                    <h5 className="font-extrabold text-sm mb-2 flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-                      <CheckCircle className="h-4 w-4" /> Academic Remarks & Counselor Advisories
-                    </h5>
-                    <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                      "Student exhibits robust computational logic and mathematical proficiency. Demonstrates excellent punctuality, holds high scores across quarterly evaluations, and displays supportive peer leadership in class laboratory assignments. Highly recommended for advanced AP streams."
-                    </p>
-                  </div>
                 </div>
 
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 3: ACADEMIC PERFORMANCE */}
           {activeTab === 'performance' && (
@@ -835,6 +2030,13 @@ export default function StudentManagement({ darkTheme }: StudentManagementProps)
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {toastMessage && (
+        <div id="toast-message" className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-3 rounded-xl shadow-2xl border dark:border-slate-800 flex items-center gap-2 text-xs font-bold animate-bounce">
+          <Check className="h-4 w-4 text-emerald-500 animate-pulse" />
+          {toastMessage}
         </div>
       )}
 

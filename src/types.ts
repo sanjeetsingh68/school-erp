@@ -73,6 +73,19 @@ export interface SystemNotification {
   type: 'info' | 'success' | 'warning' | 'danger';
   createdAt: string;
   read: boolean;
+  category?: 'leave' | 'attendance' | 'student' | 'academic' | 'substitute' | 'reports' | 'system';
+  priority?: 'high' | 'medium' | 'low';
+  relatedRecordId?: string;
+  meta?: {
+    teacherName?: string;
+    studentName?: string;
+    date?: string;
+    reason?: string;
+    status?: string;
+    role?: string;
+    classSection?: string;
+    time?: string;
+  };
 }
 
 export interface LeaveRequest {
