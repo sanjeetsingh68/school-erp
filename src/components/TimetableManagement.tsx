@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   CalendarRange, 
   User, 
@@ -16,7 +16,11 @@ import {
   AlertCircle,
   Upload,
   Download,
-  AlertTriangle
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { Teacher, TimetableSlot, DayOfWeek, ExtraClassRequest, SystemSettings, ScheduleSlotConfig } from '../types';
 import {
@@ -52,6 +56,127 @@ export default function TimetableManagement({
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'teacher'>('daily');
   const [selectedTeacherId, setSelectedTeacherId] = useState(teachers[0]?.id || '');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
+
+  // Top Synchronized Scrollbar & Horizontal Navigation State and Refs
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const bottomScrollRef = useRef<HTMLDivElement>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+
+  // Synchronization event tracking
+  const isScrollingTop = useRef(false);
+  const isScrollingBottom = useRef(false);
+
+  useEffect(() => {
+    if (viewMode !== 'daily') return;
+    
+    const topEl = topScrollRef.current;
+    const bottomEl = bottomScrollRef.current;
+    if (!topEl || !bottomEl) return;
+
+    const handleTopScroll = () => {
+      if (isScrollingBottom.current) {
+        isScrollingBottom.current = false;
+        return;
+      }
+      isScrollingTop.current = true;
+      bottomEl.scrollLeft = topEl.scrollLeft;
+    };
+
+    const handleBottomScroll = () => {
+      if (isScrollingTop.current) {
+        isScrollingTop.current = false;
+        return;
+      }
+      isScrollingBottom.current = true;
+      topEl.scrollLeft = bottomEl.scrollLeft;
+    };
+
+    topEl.addEventListener('scroll', handleTopScroll, { passive: true });
+    bottomEl.addEventListener('scroll', handleBottomScroll, { passive: true });
+
+    return () => {
+      topEl.removeEventListener('scroll', handleTopScroll);
+      bottomEl.removeEventListener('scroll', handleBottomScroll);
+    };
+  }, [viewMode, selectedDay, scrollWidth]);
+
+  useEffect(() => {
+    if (viewMode !== 'daily') return;
+    const bottomEl = bottomScrollRef.current;
+    if (!bottomEl) return;
+
+    const updateWidth = () => {
+      setScrollWidth(bottomEl.scrollWidth);
+    };
+
+    // Delay slightly to allow DOM layout to stabilize
+    const timer = setTimeout(updateWidth, 150);
+
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+    observer.observe(bottomEl);
+
+    // Also watch any nested tables or elements that could resize
+    const tableEl = bottomEl.querySelector('table');
+    if (tableEl) {
+      observer.observe(tableEl);
+    }
+
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [viewMode, selectedDay, teachers.length, settings]);
+
+  const scrollDistance = 220; // Scrolling increment (approx. 1 column)
+
+  const handleScrollLeft = () => {
+    const container = bottomScrollRef.current;
+    if (container) {
+      container.scrollBy({ left: -scrollDistance, behavior: 'smooth' });
+    }
+  };
+
+  const handleScrollRight = () => {
+    const container = bottomScrollRef.current;
+    if (container) {
+      container.scrollBy({ left: scrollDistance, behavior: 'smooth' });
+    }
+  };
+
+  const handleScrollFirst = () => {
+    const container = bottomScrollRef.current;
+    if (container) {
+      container.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleScrollLast = () => {
+    const container = bottomScrollRef.current;
+    if (container) {
+      container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const container = bottomScrollRef.current;
+    if (!container) return;
+
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      container.scrollBy({ left: -scrollDistance, behavior: 'smooth' });
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      container.scrollBy({ left: scrollDistance, behavior: 'smooth' });
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      container.scrollTo({ left: 0, behavior: 'smooth' });
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+    }
+  };
 
   // Excel Import State
   const [selectedImportYear, setSelectedImportYear] = useState('2026-2027');
@@ -964,103 +1089,224 @@ export default function TimetableManagement({
       {/* RENDER VIEW MODE CHASSIS */}
       <div id="printable-timetable-registry-wrapper" ref={printAreaRef} className="printable-sheet">
         {viewMode === 'daily' ? (
-          /* DAILY TIMETABLE MATRIX TABLE */
-          <div className={`p-6 rounded-2xl border overflow-x-auto ${
-            darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-          }`}>
-            <div className="flex justify-between items-center mb-5 shrink-0">
-              <div>
-                <h3 className="font-bold text-base flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
-                  Daily Lessons Distribution Grid ({selectedDay})
-                </h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Double click any cell or click edit to overwrite lessons. Empty slots representation is prep/free time.
-                </p>
+          <div className="space-y-4">
+            {/* Custom styling style block for thin, modern scrollbar with hover effects */}
+            <style dangerouslySetInnerHTML={{__html: `
+              .scrollbar-custom::-webkit-scrollbar {
+                height: 8px;
+              }
+              .scrollbar-custom::-webkit-scrollbar-track {
+                background: transparent;
+              }
+              .scrollbar-custom::-webkit-scrollbar-thumb {
+                background: rgba(59, 130, 246, 0.4);
+                border-radius: 9999px;
+              }
+              .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+                background: rgba(59, 130, 246, 0.85);
+              }
+              
+              .table-scroll-custom::-webkit-scrollbar {
+                height: 10px;
+              }
+              .table-scroll-custom::-webkit-scrollbar-track {
+                background: transparent;
+              }
+              .table-scroll-custom::-webkit-scrollbar-thumb {
+                background: rgba(148, 163, 184, 0.3);
+                border-radius: 9999px;
+              }
+              .table-scroll-custom::-webkit-scrollbar-thumb:hover {
+                background: rgba(59, 130, 246, 0.6);
+              }
+            `}} />
+
+            {/* STICKY TOP SCROLLBAR & CONTROLS PANEL */}
+            <div className={`sticky top-0 z-20 p-3 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-3 ${
+              darkTheme 
+                ? 'bg-slate-900/95 border-slate-800 backdrop-blur-md shadow-lg shadow-slate-950/20' 
+                : 'bg-white/95 border-slate-100 shadow-md shadow-slate-100/10 backdrop-blur-md'
+            }`}>
+              <div className="flex items-center gap-1 shrink-0 w-full md:w-auto justify-between md:justify-start">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleScrollFirst}
+                    className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center cursor-pointer transition-all hover:scale-[1.02] ${
+                      darkTheme 
+                        ? 'bg-slate-800 border-slate-700 hover:bg-slate-750 text-slate-300' 
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-655'
+                    }`}
+                    title="First Column (Home)"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                    <span className="hidden lg:inline ml-1 text-[11px]">First</span>
+                  </button>
+                  <button
+                    onClick={handleScrollLeft}
+                    className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center cursor-pointer transition-all hover:scale-[1.02] ${
+                      darkTheme 
+                        ? 'bg-slate-800 border-slate-700 hover:bg-slate-750 text-slate-300' 
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-655'
+                    }`}
+                    title="Scroll Left (Left Arrow)"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-1 text-[11px]">Scroll Left</span>
+                  </button>
+                </div>
+                
+                <span className="inline-block md:hidden text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
+                  ← Swipe Table →
+                </span>
+              </div>
+
+              {/* Top Horizontal Scrollbar container */}
+              <div className="flex-1 min-w-0 w-full px-2">
+                <div 
+                  ref={topScrollRef} 
+                  className="overflow-x-auto overflow-y-hidden w-full scrollbar-custom"
+                  style={{ scrollbarWidth: 'thin' }}
+                >
+                  {/* Dummy scroll container matching table width */}
+                  <div style={{ width: `${scrollWidth}px`, height: '8px' }} />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0 w-full md:w-auto justify-end">
+                <span className="hidden md:inline text-[10px] font-bold text-slate-400 mr-2 uppercase tracking-wide">
+                  Use Shift + Wheel or ◀ Arrow keys ▶
+                </span>
+                
+                <button
+                  onClick={handleScrollRight}
+                  className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center cursor-pointer transition-all hover:scale-[1.02] ${
+                    darkTheme 
+                      ? 'bg-slate-800 border-slate-700 hover:bg-slate-750 text-slate-300' 
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-655'
+                  }`}
+                  title="Scroll Right (Right Arrow)"
+                >
+                  <span className="hidden sm:inline mr-1 text-[11px]">Scroll Right</span>
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={handleScrollLast}
+                  className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-center cursor-pointer transition-all hover:scale-[1.02] ${
+                    darkTheme 
+                      ? 'bg-slate-800 border-slate-700 hover:bg-slate-750 text-slate-300' 
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-655'
+                  }`}
+                  title="Last Column (End)"
+                >
+                  <span className="hidden lg:inline mr-1 text-[11px]">Last</span>
+                  <ChevronsRight className="h-4 w-4" />
+                </button>
               </div>
             </div>
 
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className={`border-b ${darkTheme ? 'border-slate-800 bg-slate-950/40' : 'bg-slate-50/50 border-slate-100'}`}>
-                  <th className="p-3.5 font-bold text-slate-550 w-44">Educator Name</th>
-                  {timings.map((time, idx) => {
-                    const slotConf = settings.scheduleSlots?.[idx];
-                    const label = slotConf ? slotConf.name : `Period ${idx + 1}`;
-                    return (
-                      <th key={idx} className="p-3.5 font-bold text-slate-550 min-w-44 border-l dark:border-slate-800">
-                        <div className="flex flex-col">
-                          <span>{label}</span>
-                          <span className="text-[10px] text-slate-400 font-mono mt-0.5">{time}</span>
-                        </div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {teachers.map((teacher) => (
-                  <tr key={teacher.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30 transition-colors">
-                    <td className="p-3.5 font-bold text-slate-850">
-                      <div className="flex flex-col">
-                        <span>{teacher.name}</span>
-                        <span className="text-[10px] text-slate-400 font-medium">{teacher.subject}</span>
-                      </div>
-                    </td>
-                    
-                    {Array(timings.length).fill(null).map((_, pIdx) => {
-                      const slot = teacher.schedule[selectedDay]?.[pIdx];
-                      const slotConf = settings.scheduleSlots?.[pIdx];
-                      const isSpecial = slotConf && !slotConf.requiresAssignment;
+            {/* DAILY TIMETABLE MATRIX TABLE */}
+            <div 
+              ref={bottomScrollRef}
+              tabIndex={0}
+              onKeyDown={handleKeyDown}
+              className={`p-6 rounded-2xl border overflow-x-auto table-scroll-custom focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200 ${
+                darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+              }`}
+            >
+              <div className="flex justify-between items-center mb-5 shrink-0">
+                <div>
+                  <h3 className="font-bold text-base flex items-center gap-2">
+                    <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
+                    Daily Lessons Distribution Grid ({selectedDay})
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Double click any cell or click edit to overwrite lessons. Empty slots representation is prep/free time.
+                  </p>
+                </div>
+              </div>
 
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className={`border-b ${darkTheme ? 'border-slate-800 bg-slate-950/40' : 'bg-slate-50/50 border-slate-100'}`}>
+                    <th className="p-3.5 font-bold text-slate-550 w-44">Educator Name</th>
+                    {timings.map((time, idx) => {
+                      const slotConf = settings.scheduleSlots?.[idx];
+                      const label = slotConf ? slotConf.name : `Period ${idx + 1}`;
                       return (
-                        <td 
-                          key={pIdx} 
-                          onClick={() => {
-                            if (!isSpecial) {
-                              handleOpenEditSlot(teacher.id, selectedDay, pIdx);
-                            }
-                          }}
-                          className={`p-3.5 border-l dark:border-slate-800 transition-colors ${
-                            isSpecial 
-                              ? 'bg-slate-100/50 dark:bg-slate-950/40 cursor-not-allowed select-none' 
-                              : 'cursor-pointer group hover:bg-blue-50/20 dark:hover:bg-slate-800/10'
-                          }`}
-                        >
-                          {isSpecial ? (
-                            <div className="py-2 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-bold">
-                              <span className="text-[9px] tracking-wide uppercase bg-slate-200/60 dark:bg-slate-850 px-2 py-0.5 rounded-md">{slotConf.name}</span>
-                            </div>
-                          ) : slot ? (
-                            <div className="space-y-1 relative">
-                              <div className="flex justify-between items-start gap-1">
-                                <span className={`font-bold text-xs ${slot.isExtra ? 'text-indigo-600' : 'text-blue-700 dark:text-blue-300'}`}>
-                                  {slot.classSection}
-                                </span>
-                                {slot.isExtra && (
-                                  <span className="text-[9px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950/20 px-1.5 py-0.5 rounded-sm font-black">
-                                    EXTRA
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-slate-500 truncate leading-snug">{slot.subject}</p>
-                              <div className="flex items-center gap-1 text-[9px] text-slate-400 font-semibold pt-1">
-                                <MapPin className="h-3 w-3 inline text-slate-300" />
-                                <span>{slot.room}</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="py-2 flex flex-col items-center justify-center text-slate-350 dark:text-slate-600 font-bold group-hover:text-blue-500/50 transition-colors">
-                              <span className="text-[10px] tracking-wide uppercase">- FREE -</span>
-                            </div>
-                          )}
-                        </td>
+                        <th key={idx} className="p-3.5 font-bold text-slate-550 min-w-44 border-l dark:border-slate-800">
+                          <div className="flex flex-col">
+                            <span>{label}</span>
+                            <span className="text-[10px] text-slate-400 font-mono mt-0.5">{time}</span>
+                          </div>
+                        </th>
                       );
                     })}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {teachers.map((teacher) => (
+                    <tr key={teacher.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30 transition-colors">
+                      <td className="p-3.5 font-bold text-slate-850">
+                        <div className="flex flex-col">
+                          <span>{teacher.name}</span>
+                          <span className="text-[10px] text-slate-400 font-medium">{teacher.subject}</span>
+                        </div>
+                      </td>
+                      
+                      {Array(timings.length).fill(null).map((_, pIdx) => {
+                        const slot = teacher.schedule[selectedDay]?.[pIdx];
+                        const slotConf = settings.scheduleSlots?.[pIdx];
+                        const isSpecial = slotConf && !slotConf.requiresAssignment;
+
+                        return (
+                          <td 
+                            key={pIdx} 
+                            onClick={() => {
+                              if (!isSpecial) {
+                                handleOpenEditSlot(teacher.id, selectedDay, pIdx);
+                              }
+                            }}
+                            className={`p-3.5 border-l dark:border-slate-800 transition-colors ${
+                              isSpecial 
+                                ? 'bg-slate-100/50 dark:bg-slate-950/40 cursor-not-allowed select-none' 
+                                : 'cursor-pointer group hover:bg-blue-50/20 dark:hover:bg-slate-800/10'
+                            }`}
+                          >
+                            {isSpecial ? (
+                              <div className="py-2 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-bold">
+                                <span className="text-[9px] tracking-wide uppercase bg-slate-200/60 dark:bg-slate-850 px-2 py-0.5 rounded-md">{slotConf.name}</span>
+                              </div>
+                            ) : slot ? (
+                              <div className="space-y-1 relative">
+                                <div className="flex justify-between items-start gap-1">
+                                  <span className={`font-bold text-xs ${slot.isExtra ? 'text-indigo-600' : 'text-blue-700 dark:text-blue-300'}`}>
+                                    {slot.classSection}
+                                  </span>
+                                  {slot.isExtra && (
+                                    <span className="text-[9px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950/20 px-1.5 py-0.5 rounded-sm font-black">
+                                      EXTRA
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-500 truncate leading-snug">{slot.subject}</p>
+                                <div className="flex items-center gap-1 text-[9px] text-slate-400 font-semibold pt-1">
+                                  <MapPin className="h-3 w-3 inline text-slate-300" />
+                                  <span>{slot.room}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="py-2 flex flex-col items-center justify-center text-slate-350 dark:text-slate-600 font-bold group-hover:text-blue-500/50 transition-colors">
+                                <span className="text-[10px] tracking-wide uppercase">- FREE -</span>
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           /* WEEKLY TIMETABLE MATRIX TABLE FOR INDIVIDUAL TEACHER */
