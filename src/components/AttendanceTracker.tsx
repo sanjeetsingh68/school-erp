@@ -37,7 +37,7 @@ interface AttendanceTrackerProps {
   state: ERPDataState;
   selectedDate: string; // YYYY-MM-DD
   onSetSelectedDate: (date: string) => void;
-  onSaveAttendance: (date: string, statuses: { [teacherId: string]: 'Present' | 'Absent' }) => Promise<any>;
+  onSaveAttendance: (date: string, statuses: { [teacherId: string]: any }) => Promise<any>;
   darkTheme: boolean;
 }
 
@@ -48,7 +48,7 @@ export default function AttendanceTracker({
   onSaveAttendance,
   darkTheme
 }: AttendanceTrackerProps) {
-  const [statuses, setStatuses] = useState<{ [teacherId: string]: 'Present' | 'Absent' }>({});
+  const [statuses, setStatuses] = useState<{ [teacherId: string]: string }>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<'register' | 'history' | 'leaves' | 'stats'>('register');
@@ -86,7 +86,7 @@ export default function AttendanceTracker({
             </button>
             <button 
               onClick={() => setSelectedKpi(null)}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+              className="px-3 py-1.5 bg-[#F59E0B] hover:bg-[#FBBF24] text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
             >
               <ArrowLeft className="h-3 w-3" /> Back
             </button>
@@ -148,7 +148,7 @@ export default function AttendanceTracker({
           </div>
           <button 
             onClick={() => setSelectedKpi(null)}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+            className="px-3 py-1.5 bg-[#F59E0B] hover:bg-[#FBBF24] text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
           >
             <ArrowLeft className="h-3 w-3" /> Back
           </button>
@@ -217,12 +217,12 @@ export default function AttendanceTracker({
       } space-y-6`}>
         <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800">
           <div>
-            <span className="text-[10px] uppercase font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-1 rounded-md">Drilldown Insight</span>
+            <span className="text-[10px] uppercase font-bold text-[#F59E0B] bg-[#FFF8F1] dark:bg-amber-950/40 px-2 py-1 rounded-md">Drilldown Insight</span>
             <h3 className="text-lg font-bold mt-1">Staff Presence Ratio Analysis</h3>
           </div>
           <button 
             onClick={() => setSelectedKpi(null)}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+            className="px-3 py-1.5 bg-[#F59E0B] hover:bg-[#FBBF24] text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
           >
             <ArrowLeft className="h-3 w-3" /> Back
           </button>
@@ -245,7 +245,7 @@ export default function AttendanceTracker({
                       fontSize: '11px'
                     }} 
                   />
-                  <Line type="monotone" dataKey="rate" stroke="#2563eb" strokeWidth={3} dot={{ r: 4, fill: '#2563eb' }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="rate" stroke="#F59E0B" strokeWidth={3} dot={{ r: 4, fill: '#F59E0B' }} activeDot={{ r: 6 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -256,7 +256,7 @@ export default function AttendanceTracker({
             <div className="p-4 rounded-2xl border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 text-xs space-y-4">
               <div className="space-y-1">
                 <p className="font-bold text-slate-400 uppercase tracking-wider text-[9px]">Syllabus Coverage Buffer</p>
-                <p className="text-xl font-black text-blue-600">{presenceRatio}% Perfect</p>
+                <p className="text-xl font-black text-[#F59E0B]">{presenceRatio}% Perfect</p>
               </div>
               <p className="text-[11px] text-slate-500 font-semibold leading-relaxed pt-2 border-t dark:border-slate-800">
                 Weekly attendance logs reflect a stable presence coefficient of 96.8%. Coverage workflows are currently idle.
@@ -280,7 +280,7 @@ export default function AttendanceTracker({
   // Load existing attendance details for selected date
   useEffect(() => {
     const dailyRecords = state.attendance.filter(r => r.date === selectedDate);
-    const loadedStatuses: { [teacherId: string]: 'Present' | 'Absent' } = {};
+    const loadedStatuses: { [teacherId: string]: string } = {};
     
     state.teachers.forEach((teacher) => {
       const match = dailyRecords.find(r => r.teacherId === teacher.id);
@@ -291,7 +291,7 @@ export default function AttendanceTracker({
     setIsSuccess(false);
   }, [selectedDate, state.attendance, state.teachers]);
 
-  const handleToggle = (teacherId: string, value: 'Present' | 'Absent') => {
+  const handleToggle = (teacherId: string, value: string) => {
     setStatuses(prev => ({
       ...prev,
       [teacherId]: value
@@ -324,7 +324,7 @@ export default function AttendanceTracker({
   // Metrics summary calculated live
   const total = state.teachers.length;
   const presentCount = Object.values(statuses).filter(s => s === 'Present').length;
-  const absentCount = Object.values(statuses).filter(s => s === 'Absent').length;
+  const absentCount = Object.values(statuses).filter(s => s !== 'Present').length;
   const presenceRatio = total > 0 ? Math.round((presentCount / total) * 100) : 100;
 
   return (
@@ -390,9 +390,9 @@ export default function AttendanceTracker({
         <div 
           id="kpi-attendance-present"
           onClick={() => setSelectedKpi(selectedKpi === 'present' ? null : 'present')}
-          className={`p-4 rounded-xl border flex items-center gap-4 transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+          className={`p-4 rounded-xl border flex items-center gap-4 transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-[#F59E0B] ${
             selectedKpi === 'present'
-              ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+              ? 'bg-[#FFF8F1] border-[#F59E0B] dark:bg-amber-950/20 ring-2 ring-[#FED7AA]'
               : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
           }`}
         >
@@ -409,9 +409,9 @@ export default function AttendanceTracker({
         <div 
           id="kpi-attendance-absent"
           onClick={() => setSelectedKpi(selectedKpi === 'absent' ? null : 'absent')}
-          className={`p-4 rounded-xl border flex items-center gap-4 transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+          className={`p-4 rounded-xl border flex items-center gap-4 transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-[#F59E0B] ${
             selectedKpi === 'absent'
-              ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+              ? 'bg-[#FFF8F1] border-[#F59E0B] dark:bg-amber-950/20 ring-2 ring-[#FED7AA]'
               : absentCount > 0 
                 ? 'bg-red-50/50 border-red-100 dark:bg-red-950/20' 
                 : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
@@ -430,13 +430,13 @@ export default function AttendanceTracker({
         <div 
           id="kpi-attendance-ratio"
           onClick={() => setSelectedKpi(selectedKpi === 'ratio' ? null : 'ratio')}
-          className={`p-4 rounded-xl border flex items-center gap-4 transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-blue-500 ${
+          className={`p-4 rounded-xl border flex items-center gap-4 transition-all duration-300 cursor-pointer hover:shadow-md hover:scale-[1.01] hover:border-[#F59E0B] ${
             selectedKpi === 'ratio'
-              ? 'bg-blue-50/30 border-blue-600 dark:bg-blue-950/20 ring-2 ring-blue-600/50'
+              ? 'bg-[#FFF8F1] border-[#F59E0B] dark:bg-amber-950/20 ring-2 ring-[#FED7AA]'
               : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
           }`}
         >
-          <div className="p-3 bg-blue-50 text-blue-600 dark:bg-blue-950/20 rounded-xl">
+          <div className="p-3 bg-[#FFF8F1] text-[#F59E0B] dark:bg-amber-950/20 rounded-xl">
             <ClipboardCheck className="h-6 w-6" />
           </div>
           <div>
@@ -515,7 +515,7 @@ export default function AttendanceTracker({
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-850 text-slate-800 dark:text-slate-200 flex items-center justify-center font-bold text-xs">
-                            {teacher.name.split(' ').map(n => n[0]).join('')}
+                            {(teacher.name || '').split(' ').filter(Boolean).map(n => n[0]).join('')}
                           </div>
                           <div>
                             <p className="font-bold text-sm">{teacher.name}</p>
@@ -525,29 +525,29 @@ export default function AttendanceTracker({
                           </div>
                         </div>
 
-                        <div className="flex bg-slate-150 dark:bg-slate-800 p-1 rounded-xl shadow-xs self-start sm:self-center">
-                          <button
-                            type="button"
-                            onClick={() => handleToggle(teacher.id, 'Present')}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        <div className="relative self-start sm:self-center">
+                          <select
+                            value={currentStatus}
+                            onChange={(e) => handleToggle(teacher.id, e.target.value)}
+                            className={`px-3 py-2 text-xs font-bold rounded-xl border focus:outline-none cursor-pointer transition-all ${
                               currentStatus === 'Present'
-                                ? 'bg-white text-green-700 shadow-xs'
-                                : 'text-slate-400 hover:text-slate-750'
+                                ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 border-emerald-200'
+                                : currentStatus === 'Absent'
+                                  ? 'bg-red-50 dark:bg-red-950/20 text-red-600 border-red-200 animate-pulse'
+                                  : currentStatus === 'On Leave'
+                                    ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-700 border-amber-200'
+                                    : currentStatus === 'Half Day'
+                                      ? 'bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 border-indigo-200'
+                                      : 'bg-purple-50 dark:bg-purple-950/20 text-purple-700 border-purple-200'
                             }`}
                           >
-                            Present
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleToggle(teacher.id, 'Absent')}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                              currentStatus === 'Absent'
-                                ? 'bg-red-650 text-white shadow-xs'
-                                : 'text-slate-400 hover:text-slate-750'
-                            }`}
-                          >
-                            Absent
-                          </button>
+                            <option value="Present" className="text-slate-800 bg-white">Present</option>
+                            <option value="Absent" className="text-slate-800 bg-white">Absent</option>
+                            <option value="On Leave" className="text-slate-800 bg-white">On Leave</option>
+                            <option value="Half Day" className="text-slate-800 bg-white">Half Day</option>
+                            <option value="Emergency Leave" className="text-slate-800 bg-white">Emergency Leave</option>
+                            <option value="Medical Leave" className="text-slate-800 bg-white">Medical Leave</option>
+                          </select>
                         </div>
                       </div>
                     );
@@ -721,7 +721,7 @@ export default function AttendanceTracker({
                       <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                         <div 
                           style={{ width: `${deptItem.rate}%` }}
-                          className={`h-full rounded-full ${deptItem.rate === 100 ? 'bg-emerald-500' : deptItem.rate >= 90 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                          className={`h-full rounded-full ${deptItem.rate === 100 ? 'bg-emerald-500' : deptItem.rate >= 90 ? 'bg-[#F59E0B]' : 'bg-amber-500'}`}
                         />
                       </div>
                     </div>

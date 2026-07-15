@@ -460,13 +460,13 @@ export default function NotificationCenter({
               onNavigate('dashboard');
               onClose();
             }}
-            className="text-[10px] font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
+            className="text-[10px] font-bold text-slate-500 hover:text-[#F59E0B] dark:text-slate-400 dark:hover:text-[#F59E0B]"
           >
             Go to Main Dashboard
           </button>
           
           <span className="text-[9px] text-slate-400 font-black tracking-wider uppercase">
-            XYZ School ERP v4.2.0
+            Aura Academic ERP v4.2.0
           </span>
         </div>
       </motion.div>

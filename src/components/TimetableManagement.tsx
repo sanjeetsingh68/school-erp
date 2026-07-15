@@ -23,6 +23,7 @@ import {
   ChevronsRight
 } from 'lucide-react';
 import { Teacher, TimetableSlot, DayOfWeek, ExtraClassRequest, SystemSettings, ScheduleSlotConfig } from '../types';
+import { apiFetch } from '../lib/api';
 import {
   parseExcelFile,
   processClassTimetable,
@@ -477,7 +478,7 @@ export default function TimetableManagement({
     setExtraClassError(null);
     setSelectedSuggestedPeriod(null);
     try {
-      const resp = await fetch(`/api/extra-classes/suggest?teacherId=${formTeacherId}&classSection=${formClass}&date=${formDate}`);
+      const resp = await apiFetch(`/api/extra-classes/suggest?teacherId=${formTeacherId}&classSection=${formClass}&date=${formDate}`);
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Failed to suggestion');
       
@@ -517,6 +518,57 @@ export default function TimetableManagement({
     } catch (err: any) {
       setExtraClassError(err.message || 'Failed booking slot');
     }
+  };
+
+  const getSlotBgStyle = (name: string, isDark: boolean) => {
+    const normalized = (name || '').toLowerCase();
+    if (normalized.includes('lunch')) {
+      return {
+        bg: 'bg-[#F59E0B] text-white',
+        text: 'text-white font-bold',
+        badgeBg: 'bg-[#D97706]/35 text-white border border-[#FBBF24]/30'
+      };
+    }
+    if (normalized.includes('short break') || normalized.includes('break') || normalized.includes('recess')) {
+      return {
+        bg: 'bg-[#FFEDD5] text-amber-850 dark:bg-amber-950/45 dark:text-amber-200',
+        text: 'text-amber-850 dark:text-amber-200 font-bold',
+        badgeBg: 'bg-[#FED7AA]/50 text-amber-900 dark:bg-amber-900/45 dark:text-amber-300 border border-[#FED7AA]/20'
+      };
+    }
+    if (normalized.includes('assembly')) {
+      return {
+        bg: 'bg-[#FEF3C7] text-amber-900 dark:bg-amber-950/20 dark:text-amber-300',
+        text: 'text-amber-900 dark:text-amber-300 font-bold',
+        badgeBg: 'bg-[#FDE68A]/60 text-amber-950 dark:bg-amber-900/30 border border-[#FDE68A]/20'
+      };
+    }
+    if (normalized.includes('zero')) {
+      return {
+        bg: 'bg-[#FEF9C3] text-amber-900 dark:bg-yellow-950/20 dark:text-yellow-350',
+        text: 'text-amber-900 dark:text-yellow-350 font-bold',
+        badgeBg: 'bg-[#FEF08A]/60 text-amber-950 dark:bg-yellow-900/30 border border-[#FEF08A]/20'
+      };
+    }
+    if (normalized.includes('activity')) {
+      return {
+        bg: 'bg-[#FED7AA] text-amber-950 dark:bg-orange-950/30 dark:text-orange-200',
+        text: 'text-amber-950 dark:text-orange-200 font-bold',
+        badgeBg: 'bg-[#FDBA74]/60 text-amber-950 dark:bg-orange-900/30 border border-[#FDBA74]/20'
+      };
+    }
+    if (normalized.includes('over') || normalized.includes('dismiss') || normalized.includes('end')) {
+      return {
+        bg: 'bg-[#E5E7EB] text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+        text: 'text-slate-700 dark:text-slate-300 font-bold',
+        badgeBg: 'bg-slate-300 text-slate-800 dark:bg-slate-700 border border-slate-400/20'
+      };
+    }
+    return {
+      bg: 'bg-slate-100/50 dark:bg-slate-950/40 text-slate-550',
+      text: 'text-slate-550 dark:text-slate-400 font-bold',
+      badgeBg: 'bg-slate-200/60 dark:bg-slate-850 text-slate-700 dark:text-slate-300 border border-slate-300/20'
+    };
   };
 
   // Edit manual schedule slot action
@@ -569,7 +621,7 @@ export default function TimetableManagement({
       {/* Upper Action controller */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">XYZ Timetable Management</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Aura Academic Timetable Management</h2>
           <p className={`text-sm ${darkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
             Audit lessons, schedule extra classes with dynamic conflict protection, or print sheets.
           </p>
@@ -1038,7 +1090,7 @@ export default function TimetableManagement({
           <button
             onClick={() => setViewMode('daily')}
             className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              viewMode === 'daily' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400'
+              viewMode === 'daily' ? 'bg-[#F59E0B] text-white shadow-md' : 'text-slate-500 dark:text-slate-400'
             }`}
             id="timetable-view-daily"
           >
@@ -1047,7 +1099,7 @@ export default function TimetableManagement({
           <button
             onClick={() => setViewMode('weekly')}
             className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              viewMode === 'weekly' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400'
+              viewMode === 'weekly' ? 'bg-[#F59E0B] text-white shadow-md' : 'text-slate-500 dark:text-slate-400'
             }`}
             id="timetable-view-weekly"
           >
@@ -1268,22 +1320,24 @@ export default function TimetableManagement({
                             }}
                             className={`p-3.5 border-l dark:border-slate-800 transition-colors ${
                               isSpecial 
-                                ? 'bg-slate-100/50 dark:bg-slate-950/40 cursor-not-allowed select-none' 
-                                : 'cursor-pointer group hover:bg-blue-50/20 dark:hover:bg-slate-800/10'
+                                ? `${getSlotBgStyle(slotConf.name, darkTheme).bg} cursor-not-allowed select-none` 
+                                : 'cursor-pointer group hover:bg-[#FFF8F1]/50 dark:hover:bg-slate-800/10'
                             }`}
                           >
                             {isSpecial ? (
-                              <div className="py-2 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-bold">
-                                <span className="text-[9px] tracking-wide uppercase bg-slate-200/60 dark:bg-slate-850 px-2 py-0.5 rounded-md">{slotConf.name}</span>
+                              <div className="py-2 flex flex-col items-center justify-center font-bold">
+                                <span className={`text-[9px] tracking-wide uppercase px-2 py-0.5 rounded-md ${getSlotBgStyle(slotConf.name, darkTheme).badgeBg}`}>
+                                  {slotConf.name}
+                                </span>
                               </div>
                             ) : slot ? (
                               <div className="space-y-1 relative">
                                 <div className="flex justify-between items-start gap-1">
-                                  <span className={`font-bold text-xs ${slot.isExtra ? 'text-indigo-600' : 'text-blue-700 dark:text-blue-300'}`}>
+                                  <span className={`font-bold text-xs ${slot.isExtra ? 'text-[#F59E0B]' : 'text-[#F59E0B]'}`}>
                                     {slot.classSection}
                                   </span>
                                   {slot.isExtra && (
-                                    <span className="text-[9px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950/20 px-1.5 py-0.5 rounded-sm font-black">
+                                    <span className="text-[9px] bg-[#FFF8F1] text-[#F59E0B] border border-[#FED7AA] px-1.5 py-0.5 rounded-sm font-black">
                                       EXTRA
                                     </span>
                                   )}
@@ -1295,7 +1349,7 @@ export default function TimetableManagement({
                                 </div>
                               </div>
                             ) : (
-                              <div className="py-2 flex flex-col items-center justify-center text-slate-350 dark:text-slate-600 font-bold group-hover:text-blue-500/50 transition-colors">
+                              <div className="py-2 flex flex-col items-center justify-center text-slate-350 dark:text-slate-600 font-bold group-hover:text-[#F59E0B]/50 transition-colors">
                                 <span className="text-[10px] tracking-wide uppercase">- FREE -</span>
                               </div>
                             )}
@@ -1316,17 +1370,17 @@ export default function TimetableManagement({
                 key={day} 
                 className={`p-5 rounded-2xl border ${
                   day === currentWeekDay 
-                    ? 'bg-blue-50/10 border-blue-200 ring-2 ring-blue-500/10' 
+                    ? 'bg-[#FFF8F1] border-[#FED7AA] ring-2 ring-[#F59E0B]/10' 
                     : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
                 }`}
               >
                 <div className="flex justify-between items-center pb-3.5 border-b dark:border-slate-800 mb-4">
                   <h4 className="font-bold text-sm tracking-tight text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full ${day === currentWeekDay ? 'bg-blue-600' : 'bg-slate-400'}`}></span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${day === currentWeekDay ? 'bg-[#F59E0B]' : 'bg-slate-400'}`}></span>
                     {day}
                   </h4>
                   {day === currentWeekDay && (
-                    <span className="text-[9px] font-black text-blue-600 tracking-wider font-mono">TODAY</span>
+                    <span className="text-[9px] font-black text-[#F59E0B] tracking-wider font-mono">TODAY</span>
                   )}
                 </div>
 
@@ -1346,24 +1400,24 @@ export default function TimetableManagement({
                         }}
                         className={`p-3 rounded-xl border transition-all ${
                           isSpecial
-                            ? 'bg-slate-100/45 border-slate-200 dark:bg-slate-950/20 dark:border-slate-850 cursor-not-allowed select-none'
+                            ? `${getSlotBgStyle(slotConf.name, darkTheme).bg} border-slate-200 dark:border-slate-850 cursor-not-allowed select-none`
                             : slot 
-                              ? 'bg-blue-50/15 border-blue-100 dark:bg-blue-950/10 cursor-pointer hover:border-blue-400 dark:hover:border-slate-750' 
-                              : 'bg-slate-50/30 border-dashed border-slate-200 dark:bg-slate-950/10 dark:border-slate-850 cursor-pointer hover:border-blue-450'
+                              ? 'bg-[#FFF8F1] border-[#FED7AA] cursor-pointer hover:border-[#F59E0B]' 
+                              : 'bg-slate-50/30 border-dashed border-slate-200 dark:bg-slate-950/10 dark:border-slate-850 cursor-pointer hover:border-[#F59E0B]'
                         }`}
                       >
                         <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold mb-1">
                           <span>{slotConf ? slotConf.name : `Period ${pIdx + 1}`}</span>
-                          <span>{timings[pIdx].split('-')[0].trim()}</span>
+                          <span>{(timings[pIdx] || '00:00 AM - 00:00 AM').split('-')[0].trim()}</span>
                         </div>
 
                         {isSpecial ? (
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold py-1.5 text-center bg-slate-200/40 dark:bg-slate-900/40 rounded-md uppercase tracking-wider">{slotConf.name}</p>
+                          <p className={`text-[9px] font-semibold py-1.5 text-center rounded-md uppercase tracking-wider ${getSlotBgStyle(slotConf.name, darkTheme).badgeBg}`}>{slotConf.name}</p>
                         ) : slot ? (
                           <div>
                             <h5 className="font-bold text-xs truncate">{slot.classSection}</h5>
                             <p className="text-[10px] text-slate-500 mt-0.5 truncate">{slot.subject}</p>
-                            <span className="inline-block text-[9px] text-blue-600 mt-1.5 font-bold bg-blue-50 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">
+                            <span className="inline-block text-[9px] text-[#F59E0B] mt-1.5 font-bold bg-[#FFF8F1] border border-[#FED7AA] px-1.5 py-0.5 rounded-md">
                               {slot.room}
                             </span>
                           </div>
@@ -1521,7 +1575,7 @@ export default function TimetableManagement({
               <div className="flex justify-end pt-2">
                 <button
                   onClick={handleRunSmartSuggestion}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-xs font-bold shadow-md shadow-blue-500/10 cursor-pointer flex items-center gap-1"
+                  className="px-4 py-2 bg-[#F59E0B] hover:bg-[#FBBF24] text-white rounded-xl text-xs font-bold shadow-md shadow-orange-500/10 cursor-pointer flex items-center gap-1"
                 >
                   <Sparkles className="h-4 w-4" /> Run Conflict Check
                 </button>
@@ -1539,14 +1593,14 @@ export default function TimetableManagement({
                         onClick={() => setSelectedSuggestedPeriod(item.periodIndex)}
                         className={`p-3 rounded-xl border text-left flex justify-between items-center transition-all ${
                           selectedSuggestedPeriod === item.periodIndex
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                            : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-900 text-slate-800 dark:text-slate-200 hover:border-blue-400'
+                            ? 'bg-[#F59E0B] border-[#F59E0B] text-white shadow-md'
+                            : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-900 text-slate-800 dark:text-slate-200 hover:border-[#FBBF24]'
                         }`}
                         type="button"
                       >
                         <div>
                           <p className="text-xs font-bold">{item.timeLabel}</p>
-                          <p className={`text-[10px] mt-0.5 ${selectedSuggestedPeriod === item.periodIndex ? 'text-blue-105' : 'text-slate-400'}`}>
+                          <p className={`text-[10px] mt-0.5 ${selectedSuggestedPeriod === item.periodIndex ? 'text-amber-105' : 'text-slate-400'}`}>
                             {timings[item.periodIndex]}
                           </p>
                         </div>
@@ -1566,7 +1620,7 @@ export default function TimetableManagement({
                     </button>
                     <button
                       onClick={handleBookExtraClass}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold text-xs"
+                      className="px-4 py-2 bg-[#F59E0B] hover:bg-[#FBBF24] text-white rounded-xl font-bold text-xs"
                     >
                       Approve & Register Slot
                     </button>

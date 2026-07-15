@@ -148,7 +148,7 @@ export default function LeaveManagement({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <FileText className="h-6 w-6 text-blue-600" />
+            <FileText className="h-6 w-6 text-[#F59E0B]" />
             {isAdmin ? 'Faculty Leave Management' : 'Apply For Leave'}
           </h2>
           <p className={`text-sm ${darkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -165,7 +165,7 @@ export default function LeaveManagement({
               onClick={() => setActiveSubTab('apply')}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                 activeSubTab === 'apply'
-                  ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm'
+                  ? 'bg-white dark:bg-slate-800 text-[#F59E0B] shadow-sm'
                   : 'text-slate-500'
               }`}
             >
@@ -175,7 +175,7 @@ export default function LeaveManagement({
               onClick={() => setActiveSubTab('history')}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                 activeSubTab === 'history'
-                  ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm'
+                  ? 'bg-white dark:bg-slate-800 text-[#F59E0B] shadow-sm'
                   : 'text-slate-500'
               }`}
             >
@@ -230,8 +230,8 @@ export default function LeaveManagement({
                       {/* Request Header */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-dashed border-slate-200 dark:border-slate-800">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 flex items-center justify-center font-black text-sm">
-                            {leave.teacherName.split(' ').map(n => n[0]).join('')}
+                          <div className="w-9 h-9 rounded-xl bg-[#FFF8F1] dark:bg-slate-800 text-[#F59E0B] dark:text-amber-400 border border-[#FED7AA]/35 flex items-center justify-center font-black text-sm">
+                            {(leave.teacherName || '').split(' ').filter(Boolean).map(n => n[0]).join('')}
                           </div>
                           <div>
                             <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">
@@ -244,7 +244,7 @@ export default function LeaveManagement({
                         </div>
 
                         <div className="flex items-center gap-1.5 self-start sm:self-center">
-                          <span className="text-[11px] font-extrabold uppercase bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-md border border-indigo-100/30">
+                          <span className="text-[11px] font-extrabold uppercase bg-[#FFF8F1] dark:bg-slate-900 text-[#F59E0B] dark:text-amber-400 px-2.5 py-1 rounded-md border border-[#FED7AA]/35">
                             {leave.leaveType}
                           </span>
                         </div>
@@ -254,7 +254,7 @@ export default function LeaveManagement({
                       <div className="py-3 space-y-2.5">
                         <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500 font-mono font-medium">
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5 text-blue-500" />
+                            <Calendar className="h-3.5 w-3.5 text-[#F59E0B]" />
                             <span>Dates:</span>
                             <span className="font-bold text-slate-700 dark:text-slate-300">
                               {leave.startDate}
@@ -264,7 +264,7 @@ export default function LeaveManagement({
                               {leave.endDate}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-black uppercase text-blue-600">
+                          <div className="flex items-center gap-1 bg-[#FFF8F1] dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-black uppercase text-[#F59E0B] border border-[#FED7AA]/25">
                             Duration: {getDaysCount(leave.startDate, leave.endDate)}
                           </div>
                         </div>
@@ -286,7 +286,7 @@ export default function LeaveManagement({
                             value={reviewComments[leave.id] || ''}
                             onChange={(e) => setReviewComments(prev => ({ ...prev, [leave.id]: e.target.value }))}
                             disabled={reviewSubmitting === leave.id}
-                            className="w-full text-xs px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full text-xs px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-[#F59E0B]"
                             id={`leave-comment-${leave.id}`}
                           />
                         </div>
@@ -386,7 +386,7 @@ export default function LeaveManagement({
                 darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
               }`}>
                 <h3 className="text-base font-bold mb-5 flex items-center gap-2">
-                  <PlusCircle className="h-5 w-5 text-blue-600" />
+                  <PlusCircle className="h-5 w-5 text-[#F59E0B]" />
                   Fill Application Details
                 </h3>
 
@@ -413,7 +413,7 @@ export default function LeaveManagement({
                       <select
                         value={leaveType}
                         onChange={(e) => setLeaveType(e.target.value as LeaveRequest['leaveType'])}
-                        className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#F59E0B]"
                         id="leave-type-select"
                       >
                         <option value="Sick Leave">Sick Leave</option>
@@ -444,7 +444,7 @@ export default function LeaveManagement({
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
                         required
-                        className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#F59E0B]"
                         id="leave-start-date"
                       />
                     </div>
@@ -458,7 +458,7 @@ export default function LeaveManagement({
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
                         required
-                        className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#F59E0B]"
                         id="leave-end-date"
                       />
                     </div>
@@ -471,21 +471,21 @@ export default function LeaveManagement({
                       <button
                         type="button"
                         onClick={() => applyQuickDate(1)}
-                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-[11px] font-bold rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 transition-colors"
+                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-[11px] font-bold rounded-lg hover:bg-[#FFF8F1] dark:hover:bg-amber-955/30 hover:text-[#F59E0B] transition-colors"
                       >
                         Tomorrow (May 26)
                       </button>
                       <button
                         type="button"
                         onClick={() => applyQuickDate(2)}
-                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-[11px] font-bold rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 transition-colors"
+                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-[11px] font-bold rounded-lg hover:bg-[#FFF8F1] dark:hover:bg-amber-955/30 hover:text-[#F59E0B] transition-colors"
                       >
                         Wednesday (May 27)
                       </button>
                       <button
                         type="button"
                         onClick={() => applyQuickDate(3)}
-                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-[11px] font-bold rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 transition-colors"
+                        className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-[11px] font-bold rounded-lg hover:bg-[#FFF8F1] dark:hover:bg-amber-955/30 hover:text-[#F59E0B] transition-colors"
                       >
                         Thursday (May 28)
                       </button>
@@ -502,7 +502,7 @@ export default function LeaveManagement({
                       onChange={(e) => setReason(e.target.value)}
                       required
                       rows={4}
-                      className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-400 dark:placeholder-slate-500 leading-relaxed"
+                      className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#F59E0B] placeholder-slate-400 dark:placeholder-slate-500 leading-relaxed"
                       id="leave-reason-textarea"
                     />
                   </div>
@@ -511,7 +511,7 @@ export default function LeaveManagement({
                     <button
                       type="submit"
                       disabled={formIsSubmitting}
-                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs cursor-pointer tracking-wider shadow-lg shadow-blue-600/10 flex items-center gap-1.5 active:scale-95 transition-all"
+                      className="px-5 py-2.5 bg-[#F59E0B] hover:bg-[#FBBF24] text-white font-bold rounded-xl text-xs cursor-pointer tracking-wider shadow-lg shadow-orange-600/10 flex items-center gap-1.5 active:scale-95 transition-all"
                       id="leave-submit-button"
                     >
                       {formIsSubmitting ? 'Submitting...' : 'Transmit Request to Principal'}
@@ -528,7 +528,7 @@ export default function LeaveManagement({
                 darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
               }`}>
                 <h3 className="text-base font-bold mb-4.5 flex items-center gap-2">
-                  <History className="h-5 w-5 text-indigo-505" />
+                  <History className="h-5 w-5 text-[#F59E0B]" />
                   Your Historical Leave Log ({teacherLeaves.length})
                 </h3>
 
@@ -559,11 +559,11 @@ export default function LeaveManagement({
                                 </span>
                               </div>
                               <div className="mt-2 text-xs font-mono font-black flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
-                                <Calendar className="h-3.5 w-3.5 text-blue-500" />
+                                <Calendar className="h-3.5 w-3.5 text-[#F59E0B]" />
                                 <span>{leave.startDate}</span>
                                 <ArrowRight className="h-3 w-3" />
                                 <span>{leave.endDate}</span>
-                                <span className="ml-1 px-1.5 bg-blue-50 dark:bg-blue-900/30 text-[10px] text-blue-600 rounded">
+                                <span className="ml-1 px-1.5 bg-[#FFF8F1] dark:bg-amber-955/20 text-[10px] text-[#F59E0B] rounded border border-[#FED7AA]/25">
                                   {getDaysCount(leave.startDate, leave.endDate)}
                                 </span>
                               </div>
@@ -575,7 +575,7 @@ export default function LeaveManagement({
                                   ? 'bg-amber-50 dark:bg-amber-955/20 text-amber-600 border-amber-200/30' 
                                   : isApproved 
                                     ? 'bg-emerald-50 dark:bg-emerald-955/20 text-emerald-600 border-emerald-250/30'
-                                    : 'bg-red-50 dark:bg-red-955/20 text-red-650 border-red-200/30'
+                                    : 'bg-red-50 dark:bg-red-955/20 text-red-655 border-red-200/30'
                               }`}>
                                 {isPending && <Clock className="h-3 w-3" />}
                                 {isApproved && <CheckCircle2 className="h-3 w-3" />}
@@ -592,7 +592,7 @@ export default function LeaveManagement({
 
                           {leave.reviewComment && (
                             <div className="text-xs bg-slate-100 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/40 text-slate-655 dark:text-slate-300 flex items-start gap-2">
-                              <MessageSquare className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+                              <MessageSquare className="h-3.5 w-3.5 text-[#F59E0B] shrink-0 mt-0.5" />
                               <div>
                                 <span className="font-bold font-mono text-slate-400 uppercase text-[9px] block">Principal Response Comment:</span>
                                 "{leave.reviewComment}"

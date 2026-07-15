@@ -42,10 +42,10 @@ export default function SettingsPage({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Local states for settings form
-  const [schoolName, setSchoolName] = useState(state.settings?.schoolInfo?.name || "XYZ Public School");
-  const [schoolAddress, setSchoolAddress] = useState(state.settings?.schoolInfo?.address || "123 Academic Block, North Sector");
-  const [schoolEmail, setSchoolEmail] = useState(state.settings?.schoolInfo?.email || "admin@xyz.edu");
-  const [schoolPhone, setSchoolPhone] = useState(state.settings?.schoolInfo?.phone || "+91 11 2345 6789");
+  const [schoolName, setSchoolName] = useState(state.settings?.schoolInfo?.name || "Aura Academic");
+  const [schoolAddress, setSchoolAddress] = useState(state.settings?.schoolInfo?.address || "77 Innovation Drive, Silicon Valley");
+  const [schoolEmail, setSchoolEmail] = useState(state.settings?.schoolInfo?.email || "admin@aura-academic.com");
+  const [schoolPhone, setSchoolPhone] = useState(state.settings?.schoolInfo?.phone || "+1 415 555 0199");
   const [schoolBoard, setSchoolBoard] = useState(state.settings?.schoolInfo?.board || "CBSE");
 
   const [academicYear, setAcademicYear] = useState(state.settings?.academicSession?.year || "2026-2027");

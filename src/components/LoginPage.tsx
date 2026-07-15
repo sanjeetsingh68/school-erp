@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { School, Shield, User, Key, ArrowRight, Info } from 'lucide-react';
+import { School, Shield, User, Key, ArrowRight, Info, Sparkles } from 'lucide-react';
 import { UserSession } from '../types';
+import { apiFetch } from '../lib/api';
 
 interface LoginPageProps {
   onLoginSuccess: (session: UserSession) => void;
@@ -26,13 +27,37 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     }
   };
 
+  const handleLoginAsDemo = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await apiFetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'demo@school.com', password: 'demo123', role: 'admin' }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Demo login failed');
+      }
+
+      onLoginSuccess(data.session);
+    } catch (err: any) {
+      setError(err.message || 'Server connection failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('/api/login', {
+      const response = await apiFetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, role }),
@@ -53,34 +78,34 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-[#FFF8F1]/40 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans">
       {/* Decorative ambient background curves */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-60 -translate-x-12 -translate-y-12 animate-pulse-slow"></div>
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-60 translate-x-12 translate-y-12 animate-pulse-slow"></div>
+      <div className="absolute top-0 left-0 w-96 h-96 bg-[#FED7AA]/30 rounded-full mix-blend-multiply filter blur-3xl opacity-60 -translate-x-12 -translate-y-12"></div>
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#FED7AA]/20 rounded-full mix-blend-multiply filter blur-3xl opacity-60 translate-x-12 translate-y-12"></div>
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md z-10">
         <div className="flex justify-center">
-          <div className="p-3 bg-blue-600 rounded-2xl shadow-xl shadow-blue-200 text-white animate-bounce">
+          <div className="p-3 bg-[#F59E0B] rounded-2xl shadow-xl shadow-amber-500/20 text-white animate-bounce">
             <School className="h-9 w-9" id="login-logo-icon" />
           </div>
         </div>
-        <h2 className="mt-5 text-center text-2xl font-black tracking-tight text-slate-850">
-          Teacher Management & Smart Timetable
+        <h2 className="mt-5 text-center text-2xl font-black tracking-tight text-slate-900">
+          Aura Academic Control
         </h2>
-        <p className="mt-1.5 text-center text-xs text-slate-500 font-mono">
-          Intelligent Automatic Substitution & Scheduling System
+        <p className="mt-1.5 text-center text-xs text-slate-500 font-mono font-bold uppercase tracking-wider">
+          Intelligent Automatic Substitution & Scheduling
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md z-10">
-        <div className="bg-white py-8 px-6 shadow-2xl rounded-2xl border border-slate-100 sm:px-10">
+        <div className="bg-white py-8 px-6 shadow-xl rounded-2xl border border-slate-150 sm:px-10">
           {/* Role selector tabs */}
           <div className="flex bg-slate-100 p-1 rounded-xl mb-6 text-xs gap-1">
             <button
               onClick={() => { setRole('admin'); setError(null); }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all font-bold ${
                 role === 'admin'
-                  ? 'bg-white text-blue-700 shadow-xs'
+                  ? 'bg-white text-[#F59E0B] shadow-sm'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
               id="login-role-admin"
@@ -93,7 +118,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               onClick={() => { setRole('teacher'); setError(null); }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all font-bold ${
                 role === 'teacher'
-                  ? 'bg-white text-blue-700 shadow-xs'
+                  ? 'bg-white text-[#F59E0B] shadow-sm'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
               id="login-role-teacher"
@@ -120,10 +145,10 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                   required
                   placeholder={
                     role === 'admin' 
-                      ? 'admin@xyz.edu' 
-                      : 'aaravsharma@xyz.edu'
+                      ? 'admin@aura-academic.com' 
+                      : 'teacher@aura-academic.com'
                   }
-                  className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs transition-all"
+                  className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] focus:border-transparent text-xs transition-all"
                   id="login-email-input"
                 />
               </div>
@@ -145,7 +170,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   placeholder="••••••••"
-                  className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white text-slate-850 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs transition-all"
+                  className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] focus:border-transparent text-xs transition-all"
                   id="login-password-input"
                 />
               </div>
@@ -162,7 +187,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-xl shadow-lg shadow-blue-100 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all cursor-pointer disabled:opacity-50"
+                className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-xl shadow-lg shadow-orange-100 text-xs font-bold text-white bg-[#F59E0B] hover:bg-[#FBBF24] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#F59E0B] transition-all cursor-pointer disabled:opacity-50"
                 id="login-submit-button"
               >
                 {isLoading ? 'Verifying Credentials...' : 'Access Portal'}
@@ -170,6 +195,25 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               </button>
             </div>
           </form>
+
+          <div className="relative flex py-3 items-center">
+            <div className="flex-grow border-t border-slate-100"></div>
+            <span className="flex-shrink mx-3 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or explore demo</span>
+            <div className="flex-grow border-t border-slate-100"></div>
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={handleLoginAsDemo}
+              disabled={isLoading}
+              className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-xl shadow-lg shadow-orange-100 text-xs font-bold text-white bg-[#F59E0B]/90 hover:bg-[#FBBF24] focus:outline-none focus:ring-2 focus:ring-[#F59E0B] transition-all cursor-pointer disabled:opacity-50"
+              id="login-demo-button"
+            >
+              <Sparkles className="mr-2 h-4 w-4 animate-pulse text-amber-200" />
+              Try Demo (Single-Click)
+            </button>
+          </div>
 
           {/* Quick Demo Assist */}
           <div className="mt-6 pt-5 border-t border-slate-100 text-center">
@@ -180,7 +224,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               <button
                 type="button"
                 onClick={() => handleFillDemo('admin')}
-                className="text-[10px] px-2 py-1.5 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700 rounded-lg transition-colors border border-slate-100 font-bold"
+                className="text-[10px] px-2 py-1.5 bg-[#FFF8F1] hover:bg-[#FED7AA]/30 text-slate-700 hover:text-[#F59E0B] rounded-lg transition-colors border border-slate-150 font-bold"
                 id="login-demo-admin"
               >
                 Administrator
@@ -188,7 +232,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
               <button
                 type="button"
                 onClick={() => handleFillDemo('teacher')}
-                className="text-[10px] px-2 py-1.5 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700 rounded-lg transition-colors border border-slate-100 font-bold"
+                className="text-[10px] px-2 py-1.5 bg-[#FFF8F1] hover:bg-[#FED7AA]/30 text-slate-700 hover:text-[#F59E0B] rounded-lg transition-colors border border-slate-150 font-bold"
                 id="login-demo-teacher"
               >
                 Teacher Portal

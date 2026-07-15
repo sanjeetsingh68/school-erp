@@ -39,13 +39,14 @@ export interface Teacher {
   maxDailyHours?: number;
   maxWeeklyHours?: number;
   preferredFreePeriods?: { day: DayOfWeek; periodIndex: number }[];
+  blockedFromSubstitutions?: boolean;
 }
 
 export interface AttendanceRecord {
   id: string;
   date: string; // YYYY-MM-DD
   teacherId: string;
-  status: 'Present' | 'Absent';
+  status: 'Present' | 'Absent' | 'On Leave' | 'Half Day' | 'Emergency Leave' | 'Medical Leave';
   substituteAssigned?: boolean;
   substitutes?: { [periodIndex: number]: string }; // periodIndex -> substituteTeacherId
 }
@@ -54,13 +55,24 @@ export interface ExtraClassRequest {
   id: string;
   teacherId: string;
   teacherName: string;
+  employeeId?: string;
+  department?: string;
   subject: string;
   classSection: string;
   date: string; // YYYY-MM-DD
   day: DayOfWeek;
   periodIndex: number; // 0 to 5 (representing Period 1 - 6)
-  status: 'Pending' | 'Approved' | 'Rejected';
+  preferredPeriod?: string; // optional preferred period (e.g. "Period 1")
+  preferredTime?: string; // optional preferred time (e.g. "09:00 AM")
+  requestType: 'Revision Class' | 'Doubt Clearing' | 'Remedial Class' | 'Extra Practice' | 'Test Preparation' | 'Competition Coaching' | 'Olympiad Training' | 'Lab Session' | 'Project Guidance' | 'Custom';
+  reason?: string;
+  priority: 'Normal' | 'High';
+  status: 'Waiting for Matching' | 'Matched' | 'Assigned' | 'Completed' | 'Expired' | 'Cancelled' | 'Pending' | 'Approved' | 'Rejected';
   createdAt: string;
+  submittedOn?: string;
+  aiStatus?: 'No conflict' | 'Conflict';
+  aiValidationReasons?: string[];
+  preferredWeek?: string;
 }
 
 export interface SubstituteAssignment {
@@ -76,6 +88,20 @@ export interface SubstituteAssignment {
   subject: string;
   status: 'Assigned' | 'Completed';
   createdAt: string;
+  isLocked?: boolean;
+  aiConfidence?: number;
+  aiSelectionReason?: string;
+  decisionBreakdown?: {
+    extraClassFulfilled?: boolean;
+    freePeriod?: boolean;
+    presentToday?: boolean;
+    dailyWorkload?: string;
+    weeklyWorkload?: string;
+    sameDepartment?: boolean;
+    reasons?: string[];
+    contiguousFreeSlots?: number;
+    monthlySubstituteCount?: number;
+  };
 }
 
 export interface SystemNotification {
@@ -118,6 +144,7 @@ export interface UserSession {
   name: string;
   email: string;
   role: 'admin' | 'teacher';
+  isDemo?: boolean;
 }
 
 export interface ScheduleSlotConfig {
@@ -161,6 +188,20 @@ export interface SystemSettings {
   };
 }
 
+export interface SubstituteAuditLog {
+  id: string;
+  timestamp: string; // ISO String
+  date: string; // YYYY-MM-DD
+  day: DayOfWeek;
+  periodIndex: number;
+  classSection: string;
+  absentTeacherName: string;
+  assignedTeacherName: string;
+  actionType: 'Auto Assigned' | 'Manual Override' | 'Rejected' | 'Locked' | 'Unlocked';
+  details: string;
+  operator: string;
+}
+
 export interface ERPDataState {
   teachers: Teacher[];
   attendance: AttendanceRecord[];
@@ -169,4 +210,5 @@ export interface ERPDataState {
   notifications: SystemNotification[];
   leaveRequests: LeaveRequest[];
   settings: SystemSettings;
+  substituteAuditLogs?: SubstituteAuditLog[];
 }

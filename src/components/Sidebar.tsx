@@ -32,6 +32,9 @@ export default function Sidebar({
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
     { id: 'teacher-dashboard', label: 'Teacher Hub', icon: Sparkles, roles: ['teacher'] },
+    ...(session.isDemo ? [{ id: 'ai-demo', label: 'AI Demonstration', icon: Sparkles, roles: ['admin'] }] : []),
+    { id: 'extra-classes', label: 'Extra Class Requests', icon: CalendarRange, roles: ['teacher'] },
+    { id: 'extra-class-center', label: 'Extra Class Center', icon: Sparkles, roles: ['admin'] },
     { id: 'teachers', label: 'Teacher Management', icon: Users, roles: ['admin'] },
     { id: 'attendance', label: 'Attendance Tracker', icon: ClipboardCheck, roles: ['admin', 'teacher'] },
     { id: 'leaves', label: 'Leave Management', icon: FileText, roles: ['admin', 'teacher'] },
@@ -53,14 +56,14 @@ export default function Sidebar({
       {/* Upper Logo block */}
       <div className="flex-1 flex flex-col min-h-0">
         <div className={`p-6 border-b flex items-center gap-3 shrink-0 ${
-          darkTheme ? 'border-slate-800' : 'border-slate-50'
+          darkTheme ? 'border-slate-800' : 'border-slate-100'
         }`}>
-          <div className="p-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20">
+          <div className="p-2 bg-[#F59E0B] text-white rounded-xl shadow-lg shadow-amber-500/20">
             <School className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="font-bold tracking-tight text-sm text-blue-600 leading-tight">
-              Academic Control
+            <h1 className="font-extrabold tracking-tight text-sm text-[#F59E0B] leading-tight font-sans">
+              Aura Academic
             </h1>
             <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400 font-mono mt-0.5">
               Smart Timetable v2.5
@@ -77,17 +80,17 @@ export default function Sidebar({
               <button
                 key={item.id}
                 onClick={() => setCurrentTab(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all cursor-pointer ${
+                className={`w-full flex items-center gap-3 py-3 text-sm font-semibold transition-all duration-200 cursor-pointer relative ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/15'
+                    ? 'bg-[#FFF8F1] text-[#F59E0B] border-l-4 border-[#F59E0B] rounded-r-xl pl-3 shadow-sm'
                     : darkTheme
-                      ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
-                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'text-slate-400 hover:bg-slate-800/60 hover:text-[#FBBF24] pl-4 rounded-xl'
+                      : 'text-slate-500 hover:bg-[#FFF8F1]/60 hover:text-[#FBBF24] pl-4 rounded-xl'
                 }`}
                 id={`sidebar-tab-${item.id}`}
                 type="button"
               >
-                <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-[#F59E0B]' : 'text-slate-400 group-hover:text-[#FBBF24]'}`} />
                 {item.label}
               </button>
             );
@@ -97,18 +100,18 @@ export default function Sidebar({
 
       {/* User Session Profile & Logout */}
       <div className={`p-4 border-t shrink-0 ${
-        darkTheme ? 'border-slate-800 bg-slate-950/40' : 'border-slate-50 bg-slate-50/50'
+        darkTheme ? 'border-slate-800 bg-slate-950/40' : 'border-slate-100 bg-[#FFF8F1]/20'
       }`}>
         <div className="flex items-center gap-3 mb-3 px-2">
-          <div className="w-10 h-10 rounded-xl bg-blue-105 text-blue-700 flex items-center justify-center font-bold font-mono shrink-0">
-            {session.name.split(' ').map(n => n[0]).join('')}
+          <div className="w-10 h-10 rounded-xl bg-[#FFF8F1] text-[#F59E0B] border border-[#FED7AA] flex items-center justify-center font-bold font-mono shrink-0">
+            {(session?.name || '').split(' ').filter(Boolean).map(n => n[0]).join('')}
           </div>
           <div className="overflow-hidden">
             <h4 className="text-sm font-bold truncate leading-tight text-slate-900 dark:text-white">
               {session.name}
             </h4>
             <p className={`text-[9px] uppercase font-bold tracking-wider mt-0.5 ${
-              session.role === 'admin' ? 'text-red-500' : 'text-green-500'
+              session.role === 'admin' ? 'text-[#F59E0B]' : 'text-green-500'
             }`}>
               {session.role === 'admin' ? 'Administrator' : 'Teacher'}
             </p>

@@ -281,7 +281,7 @@ export default function TeacherManagement({
         
         <button
           onClick={handleOpenAdd}
-          className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-lg shadow-blue-500/10 cursor-pointer flex items-center gap-1.5"
+          className="px-4 py-2 text-xs font-bold text-white bg-[#F59E0B] hover:bg-[#FBBF24] rounded-xl transition-all shadow-lg shadow-orange-500/10 cursor-pointer flex items-center gap-1.5"
           id="teacher-add-new-btn"
         >
           <Plus className="h-4 w-4" /> Enroll New Teacher
@@ -295,7 +295,7 @@ export default function TeacherManagement({
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="space-y-0.5">
             <h3 className="font-bold text-sm tracking-tight flex items-center gap-1.5">
-              <Users className="h-4 w-4 text-blue-600" />
+              <Users className="h-4 w-4 text-[#F59E0B]" />
               Bulk Faculty Registry Spreadsheet Ingestion
             </h3>
             <p className="text-xs text-slate-400">
@@ -317,7 +317,7 @@ export default function TeacherManagement({
             <button
               onClick={handleRegistryUploadClick}
               disabled={isImportingRegistry}
-              className="px-3.5 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5 w-full sm:w-auto shrink-0"
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#F59E0B] hover:bg-[#FBBF24] disabled:bg-[#FED7AA] rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5 w-full sm:w-auto shrink-0"
             >
               <Upload className="h-3.5 w-3.5" /> {isImportingRegistry ? 'Importing...' : '➕ Bulk Import Registry (.xlsx)'}
             </button>
@@ -354,7 +354,7 @@ export default function TeacherManagement({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search faculty by name or certified subjects..."
-              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl leading-5 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs transition-all"
+              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl leading-5 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] focus:border-transparent text-xs transition-all"
               id="faculty-search-input"
             />
           </div>
@@ -363,7 +363,7 @@ export default function TeacherManagement({
             <select
               value={filterSubject}
               onChange={(e) => setFilterSubject(e.target.value)}
-              className="block w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs selection:bg-blue-200 text-slate-700 bg-white"
+              className="block w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] focus:border-transparent text-xs selection:bg-orange-100 text-slate-700 bg-white"
             >
               <option value="All">All Subjects</option>
               {uniqueSubjects.filter(sub => sub !== 'All').map((sub) => (
@@ -376,7 +376,7 @@ export default function TeacherManagement({
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="block w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs text-slate-700 bg-white"
+              className="block w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] focus:border-transparent text-xs text-slate-700 bg-white"
             >
               <option value="All">All Statuses</option>
               <option value="Active">Active Duty</option>
@@ -417,7 +417,7 @@ export default function TeacherManagement({
                         value={formEmployeeId}
                         onChange={(e) => setFormEmployeeId(e.target.value)}
                         placeholder="e.g. EMP409"
-                        className="block w-full px-3 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white"
+                        className="block w-full px-3 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] text-xs text-slate-800 bg-white"
                         required
                       />
                     </div>
@@ -428,7 +428,7 @@ export default function TeacherManagement({
                         value={formDesignation}
                         onChange={(e) => setFormDesignation(e.target.value)}
                         placeholder="e.g. Senior Teacher"
-                        className="block w-full px-3 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white"
+                        className="block w-full px-3 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] text-xs text-slate-800 bg-white"
                       />
                     </div>
                   </div>
@@ -441,7 +441,7 @@ export default function TeacherManagement({
                       value={formName}
                       onChange={(e) => setFormName(e.target.value)}
                       placeholder="e.g. Priyesh Shah"
-                      className="block w-full px-3.5 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white"
+                      className="block w-full px-3.5 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] text-xs text-slate-800 bg-white"
                       required
                     />
                   </div>
@@ -455,7 +455,7 @@ export default function TeacherManagement({
                         value={formEmail}
                         onChange={(e) => setFormEmail(e.target.value)}
                         placeholder="e.g. name@school.com"
-                        className="block w-full px-3.5 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white"
+                        className="block w-full px-3.5 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] text-xs text-slate-800 bg-white"
                         required
                       />
                     </div>
@@ -466,7 +466,7 @@ export default function TeacherManagement({
                         value={formPhone}
                         onChange={(e) => setFormPhone(e.target.value)}
                         placeholder="e.g. +91 9000000001"
-                        className="block w-full px-3.5 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white"
+                        className="block w-full px-3.5 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] text-xs text-slate-800 bg-white"
                         required
                       />
                     </div>
@@ -481,7 +481,7 @@ export default function TeacherManagement({
                         value={formDepartment}
                         onChange={(e) => setFormDepartment(e.target.value)}
                         placeholder="e.g. Science"
-                        className="block w-full px-2 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white"
+                        className="block w-full px-2 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] text-xs text-slate-800 bg-white"
                       />
                     </div>
                     <div>
@@ -491,7 +491,7 @@ export default function TeacherManagement({
                         value={formQualification}
                         onChange={(e) => setFormQualification(e.target.value)}
                         placeholder="e.g. M.Sc, B.Ed"
-                        className="block w-full px-2 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white"
+                        className="block w-full px-2 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] text-xs text-slate-800 bg-white"
                       />
                     </div>
                     <div>
@@ -500,7 +500,7 @@ export default function TeacherManagement({
                         type="number"
                         value={formExperience}
                         onChange={(e) => setFormExperience(parseInt(e.target.value, 10) || 0)}
-                        className="block w-full px-2 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white"
+                        className="block w-full px-2 py-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] text-xs text-slate-800 bg-white"
                       />
                     </div>
                   </div>
@@ -517,7 +517,7 @@ export default function TeacherManagement({
                             value={status}
                             checked={formStatus === status}
                             onChange={() => setFormStatus(status as any)}
-                            className="text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            className="text-[#F59E0B] focus:ring-[#F59E0B] cursor-pointer"
                           />
                           {status}
                         </label>
@@ -577,7 +577,7 @@ export default function TeacherManagement({
                                   setFormSubjects([...formSubjects, subj]);
                                 }
                               }}
-                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
+                              className="rounded border-slate-300 text-[#F59E0B] focus:ring-[#F59E0B] h-3.5 w-3.5 cursor-pointer"
                             />
                             {subj}
                           </label>
@@ -587,27 +587,27 @@ export default function TeacherManagement({
                   </div>
 
                   {/* Workload hour limits */}
-                  <div className="grid grid-cols-2 gap-3 p-3 bg-blue-50/20 dark:bg-slate-950 border border-blue-100/50 dark:border-slate-850 rounded-2xl">
+                  <div className="grid grid-cols-2 gap-3 p-3 bg-[#FFF8F1]/40 dark:bg-slate-950 border border-[#FED7AA]/40 dark:border-slate-850 rounded-2xl">
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                        <ClockIcon className="h-3.5 w-3.5 text-blue-500" /> Max Daily Hours
+                        <ClockIcon className="h-3.5 w-3.5 text-[#F59E0B]" /> Max Daily Hours
                       </label>
                       <input
                         type="number"
                         value={formMaxDailyHours}
                         onChange={(e) => setFormMaxDailyHours(parseInt(e.target.value, 10) || 6)}
-                        className="block w-full px-3 py-1 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white mt-1"
+                        className="block w-full px-3 py-1 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] text-xs text-slate-800 bg-white mt-1"
                       />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                        <Shield className="h-3.5 w-3.5 text-blue-500" /> Max Weekly Hours
+                        <Shield className="h-3.5 w-3.5 text-[#F59E0B]" /> Max Weekly Hours
                       </label>
                       <input
                         type="number"
                         value={formMaxWeeklyHours}
                         onChange={(e) => setFormMaxWeeklyHours(parseInt(e.target.value, 10) || 30)}
-                        className="block w-full px-3 py-1 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-slate-800 bg-white mt-1"
+                        className="block w-full px-3 py-1 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#F59E0B] text-xs text-slate-800 bg-white mt-1"
                       />
                     </div>
                   </div>
@@ -630,7 +630,7 @@ export default function TeacherManagement({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold text-xs shadow-lg shadow-blue-500/10 cursor-pointer"
+                  className="px-4 py-2 bg-[#F59E0B] text-white rounded-xl hover:bg-[#FBBF24] font-bold text-xs shadow-lg shadow-orange-500/10 cursor-pointer"
                 >
                   {editingTeacherId ? 'Apply Edits' : 'Save Profile'}
                 </button>
@@ -656,15 +656,15 @@ export default function TeacherManagement({
             return (
               <div
                 key={t.id}
-                className={`p-5 rounded-2xl border flex flex-col justify-between transition-all group hover:border-blue-300 dark:hover:border-slate-750 ${
+                className={`p-5 rounded-2xl border flex flex-col justify-between transition-all group hover:border-[#FED7AA] dark:hover:border-slate-750 ${
                   darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-xs'
                 }`}
               >
                 <div>
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 dark:bg-slate-800 dark:text-blue-300 flex items-center justify-center font-bold text-sm tracking-wide shrink-0">
-                        {t.name.split(' ').map(n => n[0]).join('')}
+                      <div className="w-11 h-11 rounded-xl bg-[#FFF8F1] text-[#F59E0B] border border-[#FED7AA]/45 dark:bg-slate-800 dark:text-amber-400 flex items-center justify-center font-bold text-sm tracking-wide shrink-0 font-sans">
+                        {(t.name || '').split(' ').filter(Boolean).map(n => n[0]).join('')}
                       </div>
                       <div>
                         <h4 className="font-bold text-sm">{t.name}</h4>
@@ -683,7 +683,7 @@ export default function TeacherManagement({
                     <div className="flex gap-1.5">
                       <button
                         onClick={() => handleOpenEdit(t)}
-                        className="p-1.5 hover:bg-slate-150 dark:hover:bg-slate-805 text-slate-400 hover:text-blue-600 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 hover:bg-slate-150 dark:hover:bg-slate-805 text-slate-400 hover:text-[#F59E0B] rounded-lg transition-colors cursor-pointer"
                         title="Edit profile"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
@@ -708,12 +708,12 @@ export default function TeacherManagement({
                       {t.employeeId || 'FAC-ERP'}
                     </span>
                     {t.qualification && (
-                      <span className="bg-blue-50/50 dark:bg-slate-800/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
+                      <span className="bg-[#FFF8F1] dark:bg-slate-800/50 text-[#F59E0B] dark:text-amber-400 px-1.5 py-0.5 rounded border border-[#FED7AA]/40">
                         {t.qualification}
                       </span>
                     )}
                     {t.experience !== undefined && (
-                      <span className="bg-indigo-50/50 dark:bg-slate-850 text-indigo-700 dark:text-slate-400 px-1.5 py-0.5 rounded">
+                      <span className="bg-[#FFF8F1] dark:bg-slate-850 text-amber-700 dark:text-slate-400 px-1.5 py-0.5 rounded border border-[#FED7AA]/40">
                         {t.experience} Yrs Exp
                       </span>
                     )}

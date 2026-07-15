@@ -22,6 +22,8 @@ import {
   SystemNotification 
 } from './types';
 
+import { apiFetch } from './lib/api';
+
 // Pages
 import LoginPage from './components/LoginPage';
 import Sidebar from './components/Sidebar';
@@ -34,6 +36,9 @@ import ReportsAndAnalytics from './components/ReportsAndAnalytics';
 import SettingsPage from './components/SettingsPage';
 import LeaveManagement from './components/LeaveManagement';
 import NotificationCenter from './components/NotificationCenter';
+import ExtraClassRequests from './components/ExtraClassRequests';
+import ExtraClassRequestCenter from './components/ExtraClassRequestCenter';
+import AIDemonstration from './components/AIDemonstration';
 import { AnimatePresence, motion } from 'motion/react';
 
 export default function App() {
@@ -109,7 +114,7 @@ export default function App() {
   const fetchState = async () => {
     setIsLoading(true);
     try {
-      const resp = await fetch('/api/state');
+      const resp = await apiFetch('/api/state');
       const data = await resp.json();
       if (resp.ok) {
         setState(data);
@@ -153,7 +158,7 @@ export default function App() {
   // ------------------ SERVER ENDPOINT HANDLERS ------------------
 
   const handleAddTeacher = async (teacher: Teacher) => {
-    const resp = await fetch('/api/teachers', {
+    const resp = await apiFetch('/api/teachers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(teacher)
@@ -165,7 +170,7 @@ export default function App() {
   };
 
   const handleUpdateTeacher = async (id: string, updated: Partial<Teacher>) => {
-    const resp = await fetch(`/api/teachers/${id}`, {
+    const resp = await apiFetch(`/api/teachers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updated)
@@ -177,7 +182,7 @@ export default function App() {
   };
 
   const handleDeleteTeacher = async (id: string) => {
-    const resp = await fetch(`/api/teachers/${id}`, {
+    const resp = await apiFetch(`/api/teachers/${id}`, {
       method: 'DELETE'
     });
     const data = await resp.json();
@@ -192,7 +197,7 @@ export default function App() {
     periodIndex: number, 
     slot: TimetableSlot | null
   ) => {
-    const resp = await fetch('/api/schedule/set-slot', {
+    const resp = await apiFetch('/api/schedule/set-slot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teacherId, day, periodIndex, slot })
@@ -204,7 +209,7 @@ export default function App() {
   };
 
   const handleImportTimetable = async (classSection: string, slots: any[]) => {
-    const resp = await fetch('/api/schedule/import-timetable-data', {
+    const resp = await apiFetch('/api/schedule/import-timetable-data', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ classSection, slots })
@@ -216,7 +221,7 @@ export default function App() {
   };
 
   const handleBulkImportTeachers = async (teachersList: any[]) => {
-    const resp = await fetch('/api/teachers/import-bulk', {
+    const resp = await apiFetch('/api/teachers/import-bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teachers: teachersList })
@@ -233,7 +238,7 @@ export default function App() {
     date: string;
     periodIndex: number;
   }) => {
-    const resp = await fetch('/api/extra-classes/request', {
+    const resp = await apiFetch('/api/extra-classes/request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -248,7 +253,7 @@ export default function App() {
     date: string, 
     teacherStatuses: { [teacherId: string]: 'Present' | 'Absent' }
   ) => {
-    const resp = await fetch('/api/attendance/mark', {
+    const resp = await apiFetch('/api/attendance/mark', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date, teacherStatuses })
@@ -265,7 +270,7 @@ export default function App() {
     absentTeacherId: string;
     substituteTeacherId: string;
   }) => {
-    const resp = await fetch('/api/substitutes/assign', {
+    const resp = await apiFetch('/api/substitutes/assign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -283,7 +288,7 @@ export default function App() {
     leaveType: any;
     reason: string;
   }) => {
-    const resp = await fetch('/api/leaves/apply', {
+    const resp = await apiFetch('/api/leaves/apply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -295,7 +300,7 @@ export default function App() {
   };
 
   const handleReviewLeave = async (id: string, status: 'Approved' | 'Rejected', comment: string) => {
-    const resp = await fetch(`/api/leaves/${id}/review`, {
+    const resp = await apiFetch(`/api/leaves/${id}/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status, reviewComment: comment })
@@ -307,7 +312,7 @@ export default function App() {
   };
 
   const handleUpdateSettings = async (updatedSettings: any) => {
-    const resp = await fetch('/api/settings', {
+    const resp = await apiFetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedSettings)
@@ -319,7 +324,7 @@ export default function App() {
   };
 
   const handleMarkNotificationRead = async (id: string) => {
-    const resp = await fetch(`/api/notifications/${id}`, {
+    const resp = await apiFetch(`/api/notifications/${id}`, {
       method: 'PUT'
     });
     const data = await resp.json();
@@ -329,7 +334,7 @@ export default function App() {
   };
 
   const handleMarkAllNotificationsRead = async () => {
-    const resp = await fetch('/api/notifications/read-all', {
+    const resp = await apiFetch('/api/notifications/read-all', {
       method: 'PUT'
     });
     const data = await resp.json();
@@ -339,7 +344,7 @@ export default function App() {
   };
 
   const handleDeleteNotification = async (id: string) => {
-    const resp = await fetch(`/api/notifications/${id}`, {
+    const resp = await apiFetch(`/api/notifications/${id}`, {
       method: 'DELETE'
     });
     const data = await resp.json();
@@ -349,7 +354,7 @@ export default function App() {
   };
 
   const handleResetDB = async () => {
-    const resp = await fetch('/api/reset', {
+    const resp = await apiFetch('/api/reset', {
       method: 'POST'
     });
     const data = await resp.json();
@@ -365,14 +370,14 @@ export default function App() {
   };
 
   const handleRestoreBackup = async (restoredState: any) => {
-    const resp = await fetch('/api/settings', {
+    const resp = await apiFetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(restoredState.settings || state.settings)
     });
     // For general backup, we can overwrite everything by calling reset endpoints or direct POST.
     // Let's write a simple post endpoint or just update local settings:
-    const respState = await fetch('/api/reset', { method: 'POST' }); // seed and reset
+    const respState = await apiFetch('/api/reset', { method: 'POST' }); // seed and reset
     if (respState.ok) {
       const resData = await respState.json();
       setState({
@@ -380,7 +385,7 @@ export default function App() {
         ...restoredState
       });
       // Save it back
-      await fetch('/api/settings', {
+      await apiFetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(restoredState.settings)
@@ -425,7 +430,7 @@ export default function App() {
   }
 
   const unreadCount = state.notifications.filter(n => !n.read).length;
-  const schoolName = state.settings?.schoolInfo?.name || "XYZ Public School";
+  const schoolName = state.settings?.schoolInfo?.name || "Aura Academic";
 
   return (
     <div className={`min-h-screen flex font-sans ${darkTheme ? 'bg-slate-950 text-slate-100' : 'bg-slate-50/50 text-slate-800'}`}>
@@ -444,6 +449,25 @@ export default function App() {
       {/* Main Panel */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         
+        {session?.isDemo && (
+          <div className="bg-[#FFF8F1] border-b border-[#FED7AA] text-slate-800 px-6 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-semibold shrink-0 shadow-sm z-40">
+            <div className="flex items-center gap-2">
+              <span className="bg-[#F59E0B] text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-md animate-pulse">
+                Demo Mode
+              </span>
+              <span>
+                You are viewing an isolated evaluation sandbox. All edits use realistic simulated data.
+              </span>
+            </div>
+            <button 
+              onClick={() => setCurrentTab('ai-demo')}
+              className="px-2.5 py-1 bg-white hover:bg-[#FFF8F1] text-[#F59E0B] border border-[#FED7AA] rounded-lg text-[10px] font-bold shadow-xs transition-colors cursor-pointer"
+            >
+              Open AI Simulation Centre
+            </button>
+          </div>
+        )}
+
         {/* Header bar */}
         <header className={`px-6 py-4 border-b flex justify-between items-center transition-colors shrink-0 ${
           darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
@@ -461,21 +485,21 @@ export default function App() {
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
               <span className="text-slate-500 dark:text-slate-300 font-bold uppercase tracking-wider font-mono text-[10px]">{schoolName}</span>
               <ChevronRight className="h-3.5 w-3.5 opacity-55" />
-              <span className="capitalize text-blue-600 font-bold">{currentTab.replace('-', ' ')}</span>
+              <span className="capitalize text-[#F59E0B] font-bold">{currentTab.replace('-', ' ')}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-4.5">
             {/* Live UTC Clock */}
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-850 rounded-lg text-slate-500 font-mono font-semibold text-[11px]">
-              <Clock className="h-3.5 w-3.5 text-blue-500" />
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF8F1] border border-[#FED7AA]/30 rounded-lg text-slate-650 font-mono font-semibold text-[11px]">
+              <Clock className="h-3.5 w-3.5 text-[#F59E0B]" />
               <span>UTC: {selectedDate} 08:00 AM</span>
             </div>
 
             {/* Light/Dark Toggle */}
             <button
               onClick={handleToggleTheme}
-              className="p-2 text-slate-400 hover:text-slate-655 dark:hover:text-yellow-400 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-2 text-slate-400 hover:text-[#F59E0B] dark:hover:text-amber-400 rounded-xl hover:bg-[#FFF8F1] dark:hover:bg-slate-800 transition-colors cursor-pointer"
               title="Toggle Layout Theme"
             >
               {darkTheme ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
@@ -486,12 +510,12 @@ export default function App() {
               <button
                 id="header-notification-bell"
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="p-2 text-slate-400 hover:text-slate-655 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-850 transition-colors cursor-pointer relative"
+                className="p-2 text-slate-400 hover:text-[#F59E0B] rounded-xl hover:bg-[#FFF8F1] dark:hover:bg-slate-850 transition-colors cursor-pointer relative"
                 title="Notifications"
               >
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1.5 w-4 h-4 rounded-full bg-red-500 text-white font-black text-[9px] flex items-center justify-center animate-pulse">
+                  <span className="absolute top-1 right-1.5 w-4 h-4 rounded-full bg-[#F59E0B] text-white font-black text-[9px] flex items-center justify-center animate-pulse">
                     {unreadCount}
                   </span>
                 )}
@@ -608,6 +632,7 @@ export default function App() {
                   state={state} 
                   selectedDate={selectedDate}
                   onAssignSubstitute={handleAssignSubstitute}
+                  onUpdateState={setState}
                   darkTheme={darkTheme}
                 />
               )}
@@ -629,6 +654,24 @@ export default function App() {
                 />
               )}
 
+              {currentTab === 'extra-classes' && (
+                <ExtraClassRequests 
+                  state={state}
+                  session={session}
+                  selectedDate={selectedDate}
+                  darkTheme={darkTheme}
+                  onUpdateState={setState}
+                />
+              )}
+
+              {currentTab === 'extra-class-center' && (
+                <ExtraClassRequestCenter 
+                  state={state}
+                  darkTheme={darkTheme}
+                  onUpdateState={setState}
+                />
+              )}
+
               {currentTab === 'settings' && (
                 <SettingsPage 
                   state={state}
@@ -637,6 +680,15 @@ export default function App() {
                   onResetDB={handleResetDB}
                   onUpdateSettings={handleUpdateSettings}
                   onRestoreBackup={handleRestoreBackup}
+                />
+              )}
+
+              {currentTab === 'ai-demo' && (
+                <AIDemonstration 
+                  state={state}
+                  onUpdateState={setState}
+                  selectedDate={selectedDate}
+                  darkTheme={darkTheme}
                 />
               )}
             </div>
