@@ -634,6 +634,7 @@ export default function App() {
 
               {currentTab === 'timetable' && (
                 <TimetableManagement 
+                  state={state}
                   teachers={state.teachers} 
                   selectedDate={selectedDate}
                   onScheduleExtraClass={handleScheduleExtraClass}

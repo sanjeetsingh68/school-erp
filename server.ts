@@ -205,9 +205,9 @@ function seedInitialData(): ERPDataState {
   ];
 
   const classes = [
-    'Grade 10-A', 'Grade 10-B', 'Grade 9-A', 'Grade 11-A', 'Grade 12-A',
-    'Grade 12-B', 'Grade 9-B', 'Grade 11-B', 'Grade 9-A', 'Grade 10-B',
-    'Grade 11-A', 'Grade 10-A', 'Grade 12-A', 'Grade 11-B', 'Grade 12-B'
+    'Grade 6-A', 'Grade 6-B', 'Grade 7-A', 'Grade 7-B', 'Grade 8-A',
+    'Grade 8-B', 'Grade 9-A', 'Grade 9-B', 'Grade 10-A', 'Grade 10-B',
+    'Grade 11-A', 'Grade 11-B', 'Grade 12-A', 'Grade 12-B', 'Grade 10-A'
   ];
 
   const teachers: Teacher[] = teacherNames.map((name, index) => {
@@ -246,8 +246,9 @@ function seedInitialData(): ERPDataState {
   });
 
   const classList = [
-    'Grade 10-A', 'Grade 10-B', 'Grade 9-A', 'Grade 9-B', 
-    'Grade 11-A', 'Grade 11-B', 'Grade 12-A', 'Grade 12-B'
+    'Grade 6-A', 'Grade 6-B', 'Grade 7-A', 'Grade 7-B', 'Grade 8-A', 'Grade 8-B',
+    'Grade 9-A', 'Grade 9-B', 'Grade 10-A', 'Grade 10-B', 'Grade 11-A', 'Grade 11-B',
+    'Grade 12-A', 'Grade 12-B'
   ];
 
   teachers.forEach((t, tIdx) => {

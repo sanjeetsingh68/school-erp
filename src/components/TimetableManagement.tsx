@@ -22,7 +22,7 @@ import {
   ChevronsLeft,
   ChevronsRight
 } from 'lucide-react';
-import { Teacher, TimetableSlot, DayOfWeek, ExtraClassRequest, SystemSettings, ScheduleSlotConfig } from '../types';
+import { Teacher, TimetableSlot, DayOfWeek, ExtraClassRequest, SystemSettings, ScheduleSlotConfig, ERPDataState } from '../types';
 import { apiFetch } from '../lib/api';
 import {
   parseExcelFile,
@@ -34,6 +34,7 @@ import {
 } from '../utils/excelParser';
 
 interface TimetableManagementProps {
+  state: ERPDataState;
   teachers: Teacher[];
   selectedDate: string; // YYYY-MM-DD
   onScheduleExtraClass: (req: { teacherId: string; classSection: string; date: string; periodIndex: number }) => Promise<any>;
@@ -45,6 +46,7 @@ interface TimetableManagementProps {
 }
 
 export default function TimetableManagement({
+  state,
   teachers,
   selectedDate,
   onScheduleExtraClass,
@@ -54,9 +56,19 @@ export default function TimetableManagement({
   settings,
   onUpdateSettings
 }: TimetableManagementProps) {
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'teacher'>('daily');
+  const [viewMode, setViewMode] = useState<'teacher' | 'class' | 'section' | 'daily'>('teacher');
   const [selectedTeacherId, setSelectedTeacherId] = useState(teachers[0]?.id || '');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
+  const [selectedGrade, setSelectedGrade] = useState<string>('Grade 10');
+  const [selectedSection, setSelectedSection] = useState<string>('A');
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [searchTeacherQuery, setSearchTeacherQuery] = useState<string>('');
+  const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString());
+
+  // Track real-time synchronization updates
+  useEffect(() => {
+    setLastUpdated(new Date().toLocaleTimeString());
+  }, [state, selectedDate]);
 
   // Sync active day of week with globally selected date
   useEffect(() => {
@@ -477,9 +489,151 @@ export default function TimetableManagement({
       ];
 
   const classList = [
-    'Grade 10-A', 'Grade 10-B', 'Grade 9-A', 'Grade 9-B', 
-    'Grade 11-A', 'Grade 11-B', 'Grade 12-A', 'Grade 12-B'
+    'Grade 6-A', 'Grade 6-B', 'Grade 7-A', 'Grade 7-B', 'Grade 8-A', 'Grade 8-B',
+    'Grade 9-A', 'Grade 9-B', 'Grade 10-A', 'Grade 10-B', 'Grade 11-A', 'Grade 11-B',
+    'Grade 12-A', 'Grade 12-B'
   ];
+
+  const resolveSlotState = (day: DayOfWeek, pIdx: number, classSec: string) => {
+    // 1. Regular Teacher for this class section during this day and period
+    const regularTeacher = teachers.find(t => t.schedule[day]?.[pIdx]?.classSection === classSec);
+    const regularSlot = regularTeacher?.schedule[day]?.[pIdx];
+
+    // 2. Is there a substitute assignment for this class section and period index on selectedDate?
+    const subAssignment = state.substituteAssignments?.find(
+      sub => sub.date === selectedDate && sub.periodIndex === pIdx && sub.classSection === classSec
+    );
+
+    // 3. Is the regular teacher absent?
+    const isRegularAbsent = regularTeacher 
+      ? state.attendance?.some(att => att.date === selectedDate && att.teacherId === regularTeacher.id && att.status !== 'Present')
+      : false;
+
+    // 4. Special periods (non-teaching) from settings
+    const slotConf = settings.scheduleSlots?.[pIdx];
+    const isSpecial = slotConf && !slotConf.requiresAssignment;
+
+    let status: 'Regular' | 'Substitute' | 'Absent' | 'Free' | 'Break' | 'Cancelled' = 'Free';
+    let subject = '';
+    let teacherName = '';
+    let teacherId = '';
+    let substituteName = '';
+    let substituteId = '';
+    let room = '';
+    let details = '';
+
+    if (isSpecial) {
+      status = 'Break';
+      subject = slotConf?.name || 'Break';
+    } else if (subAssignment) {
+      status = 'Substitute';
+      subject = subAssignment.subject || regularSlot?.subject || '';
+      teacherName = subAssignment.absentTeacherName;
+      teacherId = subAssignment.absentTeacherId;
+      substituteName = subAssignment.substituteTeacherName;
+      substituteId = subAssignment.substituteTeacherId;
+      room = regularSlot?.room || 'Room 101';
+      details = `Substitution for ${subAssignment.absentTeacherName}`;
+    } else if (regularSlot) {
+      subject = regularSlot.subject;
+      teacherName = regularTeacher?.name || '';
+      teacherId = regularTeacher?.id || '';
+      room = regularSlot.room;
+      if (isRegularAbsent) {
+        status = 'Absent';
+        details = `Absent today: ${teacherName}. Pending substitute.`;
+      } else {
+        status = 'Regular';
+      }
+    } else {
+      status = 'Free';
+      subject = 'Free Period';
+    }
+
+    return {
+      status,
+      subject,
+      teacherName,
+      teacherId,
+      substituteName,
+      substituteId,
+      room,
+      details,
+      isSpecial,
+      regularTeacher
+    };
+  };
+
+  const resolveTeacherSlotState = (day: DayOfWeek, pIdx: number, teacherIdStr: string) => {
+    const t = teachers.find(other => other.id === teacherIdStr) || teachers[0];
+    if (!t) return null;
+
+    const regularSlot = t.schedule[day]?.[pIdx];
+    
+    // Check if they are absent on selectedDate
+    const isAbsent = state.attendance?.some(
+      att => att.date === selectedDate && att.teacherId === t.id && att.status !== 'Present'
+    );
+
+    // Check if they are substitute for someone else on selectedDate at pIdx
+    const isSubbing = state.substituteAssignments?.find(
+      sub => sub.date === selectedDate && sub.periodIndex === pIdx && sub.substituteTeacherId === t.id
+    );
+
+    // Check if they are absent and have a substitute assigned
+    const subAssigned = state.substituteAssignments?.find(
+      sub => sub.date === selectedDate && sub.periodIndex === pIdx && sub.absentTeacherId === t.id
+    );
+
+    const slotConf = settings.scheduleSlots?.[pIdx];
+    const isSpecial = slotConf && !slotConf.requiresAssignment;
+
+    let status: 'Regular' | 'Substitute' | 'Absent' | 'Free' | 'Break' | 'Cancelled' = 'Free';
+    let subject = '';
+    let classSection = '';
+    let room = '';
+    let details = '';
+
+    if (isSpecial) {
+      status = 'Break';
+      subject = slotConf?.name || 'Break';
+    } else if (isSubbing) {
+      status = 'Substitute';
+      subject = isSubbing.subject;
+      classSection = isSubbing.classSection;
+      room = 'Room 101'; // or look up regular room
+      details = `Substitution for ${isSubbing.absentTeacherName}`;
+    } else if (regularSlot) {
+      subject = regularSlot.subject;
+      classSection = regularSlot.classSection;
+      room = regularSlot.room;
+      if (isAbsent) {
+        status = 'Absent';
+        if (subAssigned) {
+          details = `Absent. Subbed by ${subAssigned.substituteTeacherName}`;
+        } else {
+          details = `Absent. Pending substitution.`;
+        }
+      } else {
+        status = 'Regular';
+      }
+    } else {
+      status = 'Free';
+      subject = 'Available / Free';
+    }
+
+    return {
+      status,
+      subject,
+      classSection,
+      room,
+      details,
+      isSpecial,
+      isSubbing,
+      subAssigned,
+      isAbsent
+    };
+  };
 
   const printAreaRef = useRef<HTMLDivElement>(null);
 
@@ -1100,62 +1254,193 @@ export default function TimetableManagement({
       </div>
 
       {/* FILTER BUTTONS & VIEW CHOOSE */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-100 dark:bg-slate-900 p-2 rounded-2xl">
-        <div className="flex bg-white dark:bg-slate-950 p-1 rounded-xl shadow-xs w-full sm:w-auto">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-slate-100 dark:bg-slate-900 p-3 rounded-2xl">
+        <div className="flex flex-wrap bg-white dark:bg-slate-950 p-1 rounded-xl shadow-xs w-full xl:w-auto gap-1">
+          <button
+            onClick={() => setViewMode('teacher')}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+              viewMode === 'teacher' ? 'bg-[#F59E0B] text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'
+            }`}
+            id="timetable-view-teacher"
+          >
+            🧑‍🏫 Teacher Timetable
+          </button>
+          <button
+            onClick={() => setViewMode('class')}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+              viewMode === 'class' ? 'bg-[#F59E0B] text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'
+            }`}
+            id="timetable-view-class"
+          >
+            🏫 Class Timetable
+          </button>
+          <button
+            onClick={() => setViewMode('section')}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+              viewMode === 'section' ? 'bg-[#F59E0B] text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'
+            }`}
+            id="timetable-view-section"
+          >
+            📋 Section Timetable
+          </button>
           <button
             onClick={() => setViewMode('daily')}
             className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              viewMode === 'daily' ? 'bg-[#F59E0B] text-white shadow-md' : 'text-slate-500 dark:text-slate-400'
+              viewMode === 'daily' ? 'bg-[#F59E0B] text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'
             }`}
             id="timetable-view-daily"
           >
-            Daily Full-School Grid
-          </button>
-          <button
-            onClick={() => setViewMode('weekly')}
-            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              viewMode === 'weekly' ? 'bg-[#F59E0B] text-white shadow-md' : 'text-slate-500 dark:text-slate-400'
-            }`}
-            id="timetable-view-weekly"
-          >
-            Weekly Teacher Matrix
+            🌐 Daily School Grid
           </button>
         </div>
 
-        {viewMode === 'daily' && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Day View:</span>
-            <select
-              value={selectedDay}
-              onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
-              className="px-3 py-1.5 border border-slate-200 text-xs font-semibold rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {daysOrder.map((day) => (
-                <option key={day} value={day}>{day}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* Dynamic Filters per ViewMode */}
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+          {viewMode === 'teacher' && (
+            <>
+              {/* Search Teacher Input */}
+              <div className="relative w-full sm:w-auto">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search Teacher..."
+                  value={searchTeacherQuery}
+                  onChange={(e) => setSearchTeacherQuery(e.target.value)}
+                  className="pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-xl bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] w-full sm:w-44"
+                />
+              </div>
 
-        {viewMode === 'weekly' && (
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-semibold">Select Teacher:</span>
-            <select
-              value={selectedTeacherId}
-              onChange={(e) => setSelectedTeacherId(e.target.value)}
-              className="px-3 py-1.5 border border-slate-200 text-xs font-semibold rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {teachers.map((t) => (
-                <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>
-              ))}
-            </select>
+              {/* Select Teacher Dropdown */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 shrink-0">Teacher:</span>
+                <select
+                  value={selectedTeacherId}
+                  onChange={(e) => setSelectedTeacherId(e.target.value)}
+                  className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-xl bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] w-full sm:w-auto"
+                >
+                  {teachers
+                    .filter(t => 
+                      t.name.toLowerCase().includes(searchTeacherQuery.toLowerCase()) ||
+                      t.subject.toLowerCase().includes(searchTeacherQuery.toLowerCase())
+                    )
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>
+                    ))
+                  }
+                  {teachers.filter(t => 
+                    t.name.toLowerCase().includes(searchTeacherQuery.toLowerCase()) ||
+                    t.subject.toLowerCase().includes(searchTeacherQuery.toLowerCase())
+                  ).length === 0 && (
+                    <option value="">No teachers match</option>
+                  )}
+                </select>
+              </div>
+
+              {/* Select Day Dropdown */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 shrink-0">Day:</span>
+                <select
+                  value={selectedDay}
+                  onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
+                  className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-xl bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] w-full sm:w-auto"
+                >
+                  {daysOrder.map((day) => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          {(viewMode === 'class' || viewMode === 'section') && (
+            <>
+              {/* Select Class Dropdown */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 shrink-0">Class:</span>
+                <select
+                  value={selectedGrade}
+                  onChange={(e) => setSelectedGrade(e.target.value)}
+                  className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-xl bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] w-full sm:w-auto"
+                >
+                  {['Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'].map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Select Section Dropdown */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 shrink-0">Section:</span>
+                <select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-xl bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] w-full sm:w-auto"
+                >
+                  {['A', 'B'].map((sec) => (
+                    <option key={sec} value={sec}>Section {sec}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Select Day Dropdown */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 shrink-0">Day:</span>
+                <select
+                  value={selectedDay}
+                  onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
+                  className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-xl bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] w-full sm:w-auto"
+                >
+                  {daysOrder.map((day) => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Filter Dropdown */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 shrink-0">Status:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-xl bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] w-full sm:w-auto"
+                >
+                  <option value="All">All Classes</option>
+                  <option value="Regular">Regular Classes</option>
+                  <option value="Substitute">Substitute Assigned</option>
+                  <option value="Absent">Teacher Absent</option>
+                  <option value="Free">Free Period</option>
+                  <option value="Break">Break</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          {viewMode === 'daily' && (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Day View:</span>
+              <select
+                value={selectedDay}
+                onChange={(e) => setSelectedDay(e.target.value as DayOfWeek)}
+                className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-xl bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#F59E0B]"
+              >
+                {daysOrder.map((day) => (
+                  <option key={day} value={day}>{day}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Pulsing Live Sync Badge */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold shrink-0 shadow-xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+            <span>Live Sync Active</span>
           </div>
-        )}
+        </div>
       </div>
 
       {/* RENDER VIEW MODE CHASSIS */}
-      <div id="printable-timetable-registry-wrapper" ref={printAreaRef} className="printable-sheet">
-        {viewMode === 'daily' ? (
+      <div id="printable-timetable-registry-wrapper" ref={printAreaRef}>
+        {viewMode === 'daily' && (
           <div className="space-y-4">
             {/* Custom styling style block for thin, modern scrollbar with hover effects */}
             <style dangerouslySetInnerHTML={{__html: `
@@ -1377,74 +1662,552 @@ export default function TimetableManagement({
               </table>
             </div>
           </div>
-        ) : (
-          /* WEEKLY TIMETABLE MATRIX TABLE FOR INDIVIDUAL TEACHER */
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {daysOrder.map((day) => (
-              <div 
-                key={day} 
-                className={`p-5 rounded-2xl border ${
-                  day === currentWeekDay 
-                    ? 'bg-[#FFF8F1] border-[#FED7AA] ring-2 ring-[#F59E0B]/10' 
-                    : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
-                }`}
-              >
-                <div className="flex justify-between items-center pb-3.5 border-b dark:border-slate-800 mb-4">
-                  <h4 className="font-bold text-sm tracking-tight text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full ${day === currentWeekDay ? 'bg-[#F59E0B]' : 'bg-slate-400'}`}></span>
-                    {day}
-                  </h4>
-                  {day === currentWeekDay && (
-                    <span className="text-[9px] font-black text-[#F59E0B] tracking-wider font-mono">TODAY</span>
-                  )}
+        )}
+
+        {viewMode === 'teacher' && (
+          <div className="space-y-6">
+            {/* Educator Summary Info Box */}
+            {(() => {
+              const activeTeacher = teachers.find(t => t.id === selectedTeacherId) || teachers[0];
+              if (!activeTeacher) return null;
+              
+              const isAbsentToday = state.attendance?.some(
+                att => att.date === selectedDate && att.teacherId === activeTeacher.id && att.status !== 'Present'
+              );
+
+              return (
+                <div className={`p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
+                  darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-xs'
+                }`}>
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">
+                      Educator Profile
+                    </span>
+                    <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      {activeTeacher.name}
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold inline-flex items-center gap-1 ${
+                        isAbsentToday 
+                          ? 'bg-red-50 text-red-600 border border-red-200 dark:bg-red-950/20 dark:text-red-400' 
+                          : 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400'
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${isAbsentToday ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`}></span>
+                        {isAbsentToday ? 'Absent Today' : 'Present & Active'}
+                      </span>
+                    </h3>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <p><span className="font-bold text-slate-400">Department:</span> {activeTeacher.subject} Dept</p>
+                      <p><span className="font-bold text-slate-400">Phone:</span> {activeTeacher.phone || '+91 98765 43210'}</p>
+                      <p><span className="font-bold text-slate-400">Email:</span> {activeTeacher.email}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <div className="text-center px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl min-w-[85px]">
+                      <p className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Weekly periods</p>
+                      <p className="text-lg font-black text-slate-850 mt-0.5">
+                        {Object.values(activeTeacher.schedule).reduce((acc, curr) => acc + curr.filter(Boolean).length, 0)}
+                      </p>
+                    </div>
+                    <div className="text-center px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl min-w-[85px]">
+                      <p className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Default Room</p>
+                      <p className="text-sm font-black text-slate-850 mt-1 font-mono">
+                        {Object.values(activeTeacher.schedule)
+                          .flatMap(x => x)
+                          .find(x => x && x.room)?.room || 'Room 101'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
+              );
+            })()}
 
-                <div className="space-y-3">
-                  {Array(timings.length).fill(null).map((_, pIdx) => {
-                    const slot = activeTeacher?.schedule[day]?.[pIdx];
-                    const slotConf = settings.scheduleSlots?.[pIdx];
-                    const isSpecial = slotConf && !slotConf.requiresAssignment;
-
-                    return (
-                      <div 
-                        key={pIdx} 
-                        onClick={() => {
-                          if (!isSpecial) {
-                            handleOpenEditSlot(activeTeacher?.id, day, pIdx);
-                          }
-                        }}
-                        className={`p-3 rounded-xl border transition-all ${
-                          isSpecial
-                            ? `${getSlotBgStyle(slotConf.name, darkTheme).bg} border-slate-200 dark:border-slate-850 cursor-not-allowed select-none`
-                            : slot 
-                              ? 'bg-[#FFF8F1] border-[#FED7AA] cursor-pointer hover:border-[#F59E0B]' 
-                              : 'bg-slate-50/30 border-dashed border-slate-200 dark:bg-slate-950/10 dark:border-slate-850 cursor-pointer hover:border-[#F59E0B]'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold mb-1">
-                          <span>{slotConf ? slotConf.name : `Period ${pIdx + 1}`}</span>
-                          <span>{(timings[pIdx] || '00:00 AM - 00:00 AM').split('-')[0].trim()}</span>
-                        </div>
-
-                        {isSpecial ? (
-                          <p className={`text-[9px] font-semibold py-1.5 text-center rounded-md uppercase tracking-wider ${getSlotBgStyle(slotConf.name, darkTheme).badgeBg}`}>{slotConf.name}</p>
-                        ) : slot ? (
-                          <div>
-                            <h5 className="font-bold text-xs truncate">{slot.classSection}</h5>
-                            <p className="text-[10px] text-slate-500 mt-0.5 truncate">{slot.subject}</p>
-                            <span className="inline-block text-[9px] text-[#F59E0B] mt-1.5 font-bold bg-[#FFF8F1] border border-[#FED7AA] px-1.5 py-0.5 rounded-md">
-                              {slot.room}
-                            </span>
-                          </div>
-                        ) : (
-                          <p className="text-[9px] text-slate-350 dark:text-slate-600 font-bold uppercase py-2 text-center">Available / Prep</p>
-                        )}
-                      </div>
-                    );
-                  })}
+            {/* TABULAR DETAILED TIMELINE FOR SELECTED DAY */}
+            <div className={`p-6 rounded-2xl border ${
+              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+            }`}>
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h4 className="font-bold text-base flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                    <CalendarRange className="h-4 w-4 text-blue-600" />
+                    Daily Schedule Breakdown — {selectedDay}
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Displays teaching loads, substitution directives, or free periods linked to active attendance logs.
+                  </p>
                 </div>
               </div>
-            ))}
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className={`border-b ${darkTheme ? 'border-slate-800 bg-slate-950/40' : 'bg-slate-50/50 border-slate-100'}`}>
+                      <th className="p-3.5 font-bold text-slate-550 w-24">Period</th>
+                      <th className="p-3.5 font-bold text-slate-550 w-44">Time</th>
+                      <th className="p-3.5 font-bold text-slate-550 w-40">Class & Section</th>
+                      <th className="p-3.5 font-bold text-slate-550">Subject</th>
+                      <th className="p-3.5 font-bold text-slate-550 w-32">Room</th>
+                      <th className="p-3.5 font-bold text-slate-550 w-64">Status & Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {Array(timings.length).fill(null).map((_, pIdx) => {
+                      const slotConf = settings.scheduleSlots?.[pIdx];
+                      const time = timings[pIdx];
+                      const label = slotConf ? slotConf.name : `Period ${pIdx + 1}`;
+                      
+                      const teacherState = resolveTeacherSlotState(selectedDay, pIdx, selectedTeacherId);
+                      if (!teacherState) return null;
+
+                      const { status, subject, classSection, room, details, isSpecial, isSubbing, isAbsent } = teacherState;
+
+                      let rowBg = '';
+                      if (status === 'Substitute') rowBg = 'bg-amber-50/40 dark:bg-amber-950/5';
+                      if (status === 'Absent') rowBg = 'bg-red-50/40 dark:bg-red-950/5';
+
+                      return (
+                        <tr 
+                          key={pIdx} 
+                          className={`hover:bg-slate-50/50 dark:hover:bg-slate-950/20 transition-colors cursor-pointer ${rowBg}`}
+                          onClick={() => {
+                            if (!isSpecial) {
+                              handleOpenEditSlot(selectedTeacherId, selectedDay, pIdx);
+                            }
+                          }}
+                        >
+                          <td className="p-3.5 font-bold text-slate-500 font-mono">
+                            {label}
+                          </td>
+                          <td className="p-3.5 font-medium text-slate-600 font-mono">
+                            {time}
+                          </td>
+                          <td className="p-3.5 font-bold text-[#F59E0B]">
+                            {classSection || '-'}
+                          </td>
+                          <td className="p-3.5 font-bold text-slate-850">
+                            {subject}
+                          </td>
+                          <td className="p-3.5 font-semibold text-slate-550 font-mono">
+                            {room || '-'}
+                          </td>
+                          <td className="p-3.5">
+                            {isSpecial ? (
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${getSlotBgStyle(slotConf.name, darkTheme).badgeBg}`}>
+                                {slotConf.name}
+                              </span>
+                            ) : isSubbing ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1">
+                                  <Sparkles className="h-2.5 w-2.5 text-amber-600" /> Assigned Substitute
+                                </span>
+                                <p className="text-[10px] text-amber-700 font-medium leading-relaxed">{details}</p>
+                              </div>
+                            ) : isAbsent ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-red-100 text-red-800 border border-red-200 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1">
+                                  <XCircle className="h-2.5 w-2.5" /> Absent today
+                                </span>
+                                <p className="text-[10px] text-red-600 font-medium leading-relaxed">{details}</p>
+                              </div>
+                            ) : status === 'Regular' ? (
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1">
+                                <Check className="h-2.5 w-2.5" /> Scheduled / Present
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-650 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-md text-[10px] font-semibold uppercase">
+                                Free Period
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* WEEKLY OVERVIEW TIMETABLE MATRIX TABLE */}
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-bold text-base flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                  <Printer className="h-4 w-4 text-blue-600" />
+                  Weekly Overview Matrix
+                </h4>
+                <p className="text-xs text-slate-400">
+                  Full 6-day planner distribution for the selected educator. Highlighted column indicates active scheduling day.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-5 xl:grid-cols-6 gap-4">
+                {daysOrder.map((day) => {
+                  const activeTeacher = teachers.find(t => t.id === selectedTeacherId) || teachers[0];
+                  return (
+                    <div 
+                      key={day} 
+                      className={`p-5 rounded-2xl border transition-all hover:scale-[1.01] ${
+                        day === selectedDay 
+                          ? 'bg-[#FFF8F1] border-[#FED7AA] ring-2 ring-[#F59E0B]/15' 
+                          : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center pb-3 border-b dark:border-slate-800 mb-4">
+                        <h4 className="font-black text-xs tracking-tight text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${day === selectedDay ? 'bg-[#F59E0B] animate-ping' : 'bg-slate-400'}`}></span>
+                          {day}
+                        </h4>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {Array(timings.length).fill(null).map((_, pIdx) => {
+                          const slotConf = settings.scheduleSlots?.[pIdx];
+                          const isSpecial = slotConf && !slotConf.requiresAssignment;
+                          
+                          const slotState = resolveTeacherSlotState(day, pIdx, selectedTeacherId);
+                          if (!slotState) return null;
+
+                          const { status, subject, classSection, room, isSubbing, isAbsent } = slotState;
+
+                          return (
+                            <div 
+                              key={pIdx}
+                              onClick={() => {
+                                if (!isSpecial) {
+                                  handleOpenEditSlot(selectedTeacherId, day, pIdx);
+                                }
+                              }}
+                              className={`p-2.5 rounded-xl border text-left transition-colors cursor-pointer group ${
+                                isSpecial 
+                                  ? `${getSlotBgStyle(slotConf.name, darkTheme).bg} border-slate-200 dark:border-slate-855 cursor-not-allowed`
+                                  : isSubbing
+                                    ? 'bg-amber-50/60 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900/30'
+                                    : isAbsent
+                                      ? 'bg-red-50/60 border-red-200 dark:bg-red-950/20 dark:border-red-900/30'
+                                      : status === 'Regular'
+                                        ? 'bg-white border-slate-100 dark:bg-slate-950 dark:border-slate-855'
+                                        : 'bg-slate-50/50 border-slate-100 dark:bg-slate-900/40 dark:border-slate-855'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start mb-1 text-[10px] font-bold text-slate-400">
+                                <span>P{pIdx + 1}</span>
+                                <span className="font-mono">{slotConf?.start || '00:00'}</span>
+                              </div>
+
+                              {isSpecial ? (
+                                <p className={`text-[9px] font-semibold py-1 text-center rounded-md uppercase tracking-wider ${getSlotBgStyle(slotConf.name, darkTheme).badgeBg}`}>
+                                  {slotConf.name}
+                                </p>
+                              ) : status === 'Substitute' ? (
+                                <div className="space-y-0.5">
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-black text-[11px] text-amber-700 uppercase tracking-tight">{classSection}</span>
+                                    <span className="text-[8px] bg-amber-100 text-amber-805 font-extrabold px-1 rounded">SUB</span>
+                                  </div>
+                                  <p className="font-semibold text-[10px] text-amber-800 truncate leading-relaxed">{subject}</p>
+                                </div>
+                              ) : status === 'Absent' ? (
+                                <div className="space-y-0.5">
+                                  <span className="font-black text-[11px] text-red-600 line-through tracking-tight">{classSection}</span>
+                                  <p className="font-semibold text-[10px] text-red-500 line-through truncate leading-relaxed">{subject}</p>
+                                </div>
+                              ) : status === 'Regular' ? (
+                                <div className="space-y-0.5">
+                                  <span className="font-black text-[11px] text-slate-700 dark:text-slate-350 tracking-tight">{classSection}</span>
+                                  <p className="font-semibold text-[10px] text-slate-800 dark:text-slate-350 truncate leading-relaxed">{subject}</p>
+                                  <p className="text-[9px] text-slate-400 font-medium font-mono">{room}</p>
+                                </div>
+                              ) : (
+                                <p className="text-[9px] text-slate-350 dark:text-slate-600 font-bold uppercase py-2.5 text-center tracking-wide">
+                                  Available
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewMode === 'class' && (
+          <div className="space-y-6">
+            {/* Class summary statistics card */}
+            {(() => {
+              const classSection = `${selectedGrade}-${selectedSection}`;
+              
+              // Count status types
+              let totalScheduled = 0;
+              let totalSubs = 0;
+              let totalAbsents = 0;
+              let totalFrees = 0;
+
+              Array(timings.length).fill(null).forEach((_, pIdx) => {
+                const slotConf = settings.scheduleSlots?.[pIdx];
+                if (slotConf && !slotConf.requiresAssignment) return; // ignore breaks
+                
+                const slotState = resolveSlotState(selectedDay, pIdx, classSection);
+                if (slotState.status === 'Regular') totalScheduled++;
+                else if (slotState.status === 'Substitute') totalSubs++;
+                else if (slotState.status === 'Absent') totalAbsents++;
+                else totalFrees++;
+              });
+
+              return (
+                <div className={`p-5 rounded-2xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
+                  darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-xs'
+                }`}>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">
+                      Standard Timetable View
+                    </span>
+                    <h3 className="text-xl font-black tracking-tight text-slate-950 dark:text-slate-50">
+                      {selectedGrade}-{selectedSection}
+                    </h3>
+                    <p className="text-xs text-slate-505 leading-normal">
+                      Lessons plan schedule for <span className="font-bold text-slate-700 dark:text-slate-350">{selectedDay}</span> synced to substitution engine.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full md:w-auto">
+                    <div className="text-center p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl min-w-[85px]">
+                      <p className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wide">Regular</p>
+                      <p className="text-lg font-black text-emerald-700 dark:text-emerald-400 mt-0.5">{totalScheduled}</p>
+                    </div>
+                    <div className="text-center p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-xl min-w-[85px]">
+                      <p className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wide">Substituted</p>
+                      <p className="text-lg font-black text-amber-700 dark:text-amber-400 mt-0.5">{totalSubs}</p>
+                    </div>
+                    <div className="text-center p-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 rounded-xl min-w-[85px]">
+                      <p className="text-[9px] font-black uppercase text-red-600 dark:text-red-400 tracking-wide">Absent/Pending</p>
+                      <p className="text-lg font-black text-red-700 dark:text-red-400 mt-0.5">{totalAbsents}</p>
+                    </div>
+                    <div className="text-center p-3 bg-slate-100 dark:bg-slate-955 border border-slate-200 dark:border-slate-850 rounded-xl min-w-[85px]">
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-wide">Free periods</p>
+                      <p className="text-lg font-black text-slate-850 mt-0.5">{totalFrees}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* CLASS TIMETABLE TABLE VIEW */}
+            <div className={`p-6 rounded-2xl border ${
+              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+            }`}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className={`border-b ${darkTheme ? 'border-slate-800 bg-slate-955/40' : 'bg-slate-50/50 border-slate-100'}`}>
+                      <th className="p-3.5 font-bold text-slate-555 w-24">Period</th>
+                      <th className="p-3.5 font-bold text-slate-555 w-44">Time</th>
+                      <th className="p-3.5 font-bold text-slate-555 w-64">Subject</th>
+                      <th className="p-3.5 font-bold text-slate-555 w-64">Educator / Instructor</th>
+                      <th className="p-3.5 font-bold text-slate-555 w-32">Room</th>
+                      <th className="p-3.5 font-bold text-slate-555">Status Indicator</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {Array(timings.length).fill(null).map((_, pIdx) => {
+                      const slotConf = settings.scheduleSlots?.[pIdx];
+                      const time = timings[pIdx];
+                      const label = slotConf ? slotConf.name : `Period ${pIdx + 1}`;
+                      const classSection = `${selectedGrade}-${selectedSection}`;
+                      
+                      const slotState = resolveSlotState(selectedDay, pIdx, classSection);
+                      const { status, subject, teacherName, teacherId, substituteName, room, details, isSpecial } = slotState;
+
+                      // Apply Status Filter
+                      if (statusFilter !== 'All' && status !== statusFilter) return null;
+
+                      let rowBg = '';
+                      if (status === 'Substitute') rowBg = 'bg-amber-50/40 dark:bg-amber-950/5';
+                      if (status === 'Absent') rowBg = 'bg-red-50/40 dark:bg-red-950/5';
+
+                      return (
+                        <tr 
+                          key={pIdx} 
+                          className={`hover:bg-slate-50/50 dark:hover:bg-slate-950/20 transition-colors cursor-pointer ${rowBg}`}
+                          onClick={() => {
+                            if (!isSpecial && teacherId) {
+                              handleOpenEditSlot(teacherId, selectedDay, pIdx);
+                            }
+                          }}
+                        >
+                          <td className="p-3.5 font-bold text-slate-500 font-mono">
+                            {label}
+                          </td>
+                          <td className="p-3.5 font-medium text-slate-600 font-mono">
+                            {time}
+                          </td>
+                          <td className="p-3.5">
+                            <span className="font-black text-xs text-slate-805 dark:text-slate-100">{subject}</span>
+                          </td>
+                          <td className="p-3.5">
+                            {isSpecial ? (
+                              <span className="text-slate-400">-</span>
+                            ) : status === 'Substitute' ? (
+                              <div className="flex flex-col">
+                                <span className="font-extrabold text-amber-700 dark:text-amber-400">{substituteName} (Substitute)</span>
+                                <span className="text-[10px] text-slate-400 line-through">{teacherName} (Regular)</span>
+                              </div>
+                            ) : status === 'Absent' ? (
+                              <div className="flex flex-col">
+                                <span className="font-bold text-red-500 line-through">{teacherName}</span>
+                                <span className="text-[9px] text-red-650 font-medium">Teacher Absent (No Sub)</span>
+                              </div>
+                            ) : status === 'Regular' ? (
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">{teacherName}</span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+                          <td className="p-3.5 font-semibold text-slate-555 font-mono">
+                            {room || '-'}
+                          </td>
+                          <td className="p-3.5">
+                            {isSpecial ? (
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${getSlotBgStyle(slotConf.name, darkTheme).badgeBg}`}>
+                                {slotConf.name}
+                              </span>
+                            ) : status === 'Substitute' ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1">
+                                  <Sparkles className="h-2.5 w-2.5 text-amber-600" /> Substitute Assigned
+                                </span>
+                                <p className="text-[10px] text-amber-600 font-medium leading-relaxed">{details}</p>
+                              </div>
+                            ) : status === 'Absent' ? (
+                              <div className="space-y-1">
+                                <span className="px-2 py-0.5 bg-red-100 text-red-800 border border-red-200 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1">
+                                  <AlertCircle className="h-2.5 w-2.5" /> Absent (Pending Sub)
+                                </span>
+                                <p className="text-[10px] text-red-500 font-medium leading-relaxed">No teaching coverage assigned yet.</p>
+                              </div>
+                            ) : status === 'Regular' ? (
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-md text-[10px] font-bold uppercase inline-flex items-center gap-1">
+                                <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" /> Regular Class
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-550 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-md text-[10px] font-semibold uppercase">
+                                Free period
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewMode === 'section' && (
+          <div className="space-y-6">
+            {/* Section Header Card */}
+            <div className={`p-5 rounded-2xl border ${
+              darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-xs'
+            }`}>
+              <h3 className="text-xl font-black tracking-tight text-slate-950 dark:text-slate-50">
+                🏫 Weekly Master View: {selectedGrade}-{selectedSection}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Visualizing weekly periods. Highlighted column matches globally selected scheduling day.
+              </p>
+            </div>
+
+            {/* WEEKLY COLUMNS FOR SELECTED SECTION */}
+            <div className="grid grid-cols-1 md:grid-cols-5 xl:grid-cols-6 gap-4">
+              {daysOrder.map((day) => (
+                <div 
+                  key={day} 
+                  className={`p-5 rounded-2xl border transition-all ${
+                    day === selectedDay 
+                      ? 'bg-[#FFF8F1] border-[#FED7AA] ring-2 ring-[#F59E0B]/15 shadow-sm' 
+                      : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+                  }`}
+                >
+                  <div className="flex justify-between items-center pb-3 border-b dark:border-slate-800 mb-4">
+                    <h4 className="font-black text-xs tracking-tight text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${day === selectedDay ? 'bg-[#F59E0B] animate-ping' : 'bg-slate-400'}`}></span>
+                      {day}
+                    </h4>
+                  </div>
+
+                  <div className="space-y-3">
+                    {Array(timings.length).fill(null).map((_, pIdx) => {
+                      const slotConf = settings.scheduleSlots?.[pIdx];
+                      const isSpecial = slotConf && !slotConf.requiresAssignment;
+                      const classSection = `${selectedGrade}-${selectedSection}`;
+                      
+                      const slotState = resolveSlotState(day, pIdx, classSection);
+                      const { status, subject, teacherName, teacherId, substituteName, room } = slotState;
+
+                      // Filter Status
+                      if (statusFilter !== 'All' && status !== statusFilter) return null;
+
+                      return (
+                        <div 
+                          key={pIdx}
+                          onClick={() => {
+                            if (!isSpecial && teacherId) {
+                              handleOpenEditSlot(teacherId, day, pIdx);
+                            }
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                            isSpecial 
+                              ? `${getSlotBgStyle(slotConf.name, darkTheme).bg} border-slate-200 dark:border-slate-855 cursor-not-allowed`
+                              : status === 'Substitute'
+                                ? 'bg-amber-50/65 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900/30'
+                                : status === 'Absent'
+                                  ? 'bg-red-50/65 border-red-200 dark:bg-red-950/20 dark:border-red-900/30'
+                                  : status === 'Regular'
+                                    ? 'bg-white border-slate-100 dark:bg-slate-950 dark:border-slate-855'
+                                    : 'bg-slate-50/50 border-slate-100 dark:bg-slate-900/40 dark:border-slate-855'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start mb-1 text-[10px] font-bold text-slate-400">
+                            <span>P{pIdx + 1}</span>
+                            <span className="font-mono">{slotConf?.start || '00:00'}</span>
+                          </div>
+
+                          {isSpecial ? (
+                            <p className={`text-[9px] font-semibold py-1 text-center rounded-md uppercase tracking-wider ${getSlotBgStyle(slotConf.name, darkTheme).badgeBg}`}>
+                              {slotConf.name}
+                            </p>
+                          ) : status === 'Substitute' ? (
+                            <div className="space-y-0.5">
+                              <span className="font-black text-[11px] text-amber-700 dark:text-amber-400">{subject}</span>
+                              <p className="text-[10px] text-amber-800 dark:text-amber-300 font-bold leading-relaxed">{substituteName}</p>
+                              <p className="text-[9px] text-slate-400 line-through leading-relaxed">{teacherName}</p>
+                            </div>
+                          ) : status === 'Absent' ? (
+                            <div className="space-y-0.5">
+                              <span className="font-bold text-[11px] text-red-600 line-through">{subject}</span>
+                              <p className="text-[10px] text-red-500 font-black leading-relaxed">{teacherName}</p>
+                            </div>
+                          ) : status === 'Regular' ? (
+                            <div className="space-y-0.5">
+                              <span className="font-black text-[11px] text-slate-800 dark:text-slate-150 leading-relaxed">{subject}</span>
+                              <p className="text-[10px] text-slate-650 dark:text-slate-450 leading-relaxed font-semibold">{teacherName}</p>
+                              <p className="text-[9px] text-slate-400 font-medium font-mono">{room}</p>
+                            </div>
+                          ) : (
+                            <p className="text-[9px] text-slate-350 dark:text-slate-600 font-bold uppercase py-2 text-center">
+                              Free period
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
