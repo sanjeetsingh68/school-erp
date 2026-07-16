@@ -14,7 +14,10 @@ import {
   TimetableSlot,
   LeaveRequest,
   SystemSettings,
-  SubstituteAuditLog
+  SubstituteAuditLog,
+  SubstitutionCriterion,
+  SubstitutionSettings,
+  SubstitutionRulesConfig
 } from './src/types';
 
 const app = express();
@@ -86,6 +89,106 @@ const defaultSettings: SystemSettings = {
     systemLogsLevel: "all"
   }
 };
+
+function getDefaultSubstitutionRules(): SubstitutionRulesConfig {
+  return {
+    criteria: [
+      {
+        id: "extra_class_priority",
+        name: "Extra Class Request Priority",
+        explanation: "Prioritize teachers who have requested to take an extra class for the exact class/section and subject.",
+        enabled: true,
+        priority: 1
+      },
+      {
+        id: "free_period_exact",
+        name: "Free Period at Exact Substitution Time",
+        explanation: "Give priority to teachers whose timetable has a free period during the required substitution slot.",
+        enabled: true,
+        priority: 2
+      },
+      {
+        id: "same_subject",
+        name: "Same Subject Qualification",
+        explanation: "Prioritize teachers who are qualified or assigned to teach the required subject.",
+        enabled: true,
+        priority: 3
+      },
+      {
+        id: "lowest_daily_load",
+        name: "Lowest Daily Teaching Load",
+        explanation: "Prefer the eligible teacher who has the fewest teaching periods/classes on that particular day.",
+        enabled: true,
+        priority: 4
+      },
+      {
+        id: "lowest_weekly_load",
+        name: "Lowest Weekly Teaching Load",
+        explanation: "Prioritize the teacher with the lower total number of teaching periods for the current week.",
+        enabled: true,
+        priority: 5
+      },
+      {
+        id: "same_class_experience",
+        name: "Same Class/Section Experience",
+        explanation: "Prioritize teachers who already teach the same class or section.",
+        enabled: true,
+        priority: 6
+      },
+      {
+        id: "same_grade_experience",
+        name: "Same Grade-Level Experience",
+        explanation: "Prioritize teachers who teach the same grade level.",
+        enabled: true,
+        priority: 7
+      },
+      {
+        id: "min_consecutive_load",
+        name: "Minimum Consecutive Teaching Load",
+        explanation: "Avoid assigning a teacher who already has too many consecutive periods.",
+        enabled: true,
+        priority: 8
+      },
+      {
+        id: "avoid_back_to_back",
+        name: "Avoid Back-to-Back Period Overload",
+        explanation: "Prefer a teacher who will not have consecutive teaching schedule after substitution.",
+        enabled: true,
+        priority: 9
+      },
+      {
+        id: "location_proximity",
+        name: "Room/Location Proximity",
+        explanation: "Prioritize teachers whose previous class location is closer to the class requiring substitution.",
+        enabled: true,
+        priority: 10
+      },
+      {
+        id: "availability_status",
+        name: "Teacher Availability / Leave Status",
+        explanation: "Never assign teachers who are absent, on leave, unavailable, or already assigned to another class at that time.",
+        enabled: true,
+        priority: 11
+      },
+      {
+        id: "balanced_weekly_distribution",
+        name: "Balanced Weekly Distribution",
+        explanation: "Prefer teachers who have received fewer substitute assignments during the current week.",
+        enabled: true,
+        priority: 12
+      }
+    ],
+    settings: {
+      maxDailySubs: 2,
+      maxWeeklySubs: 5,
+      maxConsecutivePeriods: 3,
+      subjectQualificationMandatory: false,
+      sameClassExperienceMandatory: false,
+      allowOutsidePrimarySubject: true,
+      allowVolunteers: true
+    }
+  };
+}
 
 // Generate clean template schedules for the 15 teachers
 function seedInitialData(): ERPDataState {
@@ -404,6 +507,8 @@ function seedInitialData(): ERPDataState {
     }
   ];
 
+  seedJuly2026Records(teachers, attendance, extraClassRequests, substituteAssignments, leaveRequests, false);
+
   return {
     teachers,
     attendance,
@@ -411,8 +516,393 @@ function seedInitialData(): ERPDataState {
     substituteAssignments,
     notifications,
     leaveRequests,
-    settings: defaultSettings
+    settings: defaultSettings,
+    substitutionRules: getDefaultSubstitutionRules()
   };
+}
+
+function seedJuly2026Records(
+  teachers: Teacher[],
+  attendanceList: AttendanceRecord[],
+  extraClassRequests: ExtraClassRequest[],
+  substituteAssignments: SubstituteAssignment[],
+  leaveRequests: LeaveRequest[],
+  isDemo: boolean
+) {
+  const prefix = isDemo ? 'demo' : '';
+  const tIdPrefix = isDemo ? 'demot' : 't';
+  const targetDates = ['2026-07-15', '2026-07-16', '2026-07-17', '2026-07-20', '2026-07-21'];
+  
+  for (let i = attendanceList.length - 1; i >= 0; i--) {
+    if (targetDates.includes(attendanceList[i].date)) {
+      attendanceList.splice(i, 1);
+    }
+  }
+  for (let i = extraClassRequests.length - 1; i >= 0; i--) {
+    if (targetDates.includes(extraClassRequests[i].date)) {
+      extraClassRequests.splice(i, 1);
+    }
+  }
+  for (let i = substituteAssignments.length - 1; i >= 0; i--) {
+    if (targetDates.includes(substituteAssignments[i].date)) {
+      substituteAssignments.splice(i, 1);
+    }
+  }
+  
+  // 15-07-2026 (Wednesday): 1 Absent, 1 Substitute, 2 Extras, 1 Pending Leave
+  const absentTeacher15 = teachers.find(t => t.id === `${tIdPrefix}3`) || teachers[0];
+  teachers.forEach(t => {
+    attendanceList.push({
+      id: `${prefix}_att_2026-07-15_${t.id}`,
+      date: '2026-07-15',
+      teacherId: t.id,
+      status: t.id === absentTeacher15.id ? 'Absent' : 'Present',
+      substituteAssigned: t.id === absentTeacher15.id,
+      substitutes: t.id === absentTeacher15.id ? { '3': teachers.find(other => other.id !== t.id)?.id || '' } : {}
+    });
+  });
+
+  substituteAssignments.push({
+    id: `${prefix}_sub_2026-07-15_1`,
+    date: '2026-07-15',
+    day: 'Wednesday',
+    periodIndex: 3,
+    classSection: absentTeacher15.classSection,
+    absentTeacherId: absentTeacher15.id,
+    absentTeacherName: absentTeacher15.name,
+    substituteTeacherId: teachers.find(other => other.id !== absentTeacher15.id)?.id || '',
+    substituteTeacherName: teachers.find(other => other.id !== absentTeacher15.id)?.name || '',
+    subject: absentTeacher15.subject,
+    status: 'Assigned',
+    createdAt: '2026-07-14T08:00:00.000Z'
+  });
+
+  extraClassRequests.push({
+    id: `${prefix}_ext_2026-07-15_1`,
+    teacherId: teachers[0].id,
+    teacherName: teachers[0].name,
+    employeeId: isDemo ? 'DEMO001' : 'EMP001',
+    department: teachers[0].department || 'Mathematics',
+    subject: teachers[0].subject,
+    classSection: 'Grade 10-A',
+    date: '2026-07-15',
+    day: 'Wednesday',
+    periodIndex: 5,
+    requestType: 'Revision Class',
+    priority: 'High',
+    status: 'Approved',
+    createdAt: '2026-07-14T10:00:00.000Z',
+    submittedOn: '2026-07-14 10:00 AM'
+  });
+  extraClassRequests.push({
+    id: `${prefix}_ext_2026-07-15_2`,
+    teacherId: teachers[1].id,
+    teacherName: teachers[1].name,
+    employeeId: isDemo ? 'DEMO002' : 'EMP002',
+    department: teachers[1].department || 'Science',
+    subject: teachers[1].subject,
+    classSection: 'Grade 9-B',
+    date: '2026-07-15',
+    day: 'Wednesday',
+    periodIndex: 6,
+    requestType: 'Doubt Clearing',
+    priority: 'Normal',
+    status: 'Approved',
+    createdAt: '2026-07-14T11:00:00.000Z',
+    submittedOn: '2026-07-14 11:00 AM'
+  });
+
+  leaveRequests.push({
+    id: `${prefix}_lv_2026-07-15_1`,
+    teacherId: `${tIdPrefix}7`,
+    teacherName: teachers.find(t => t.id === `${tIdPrefix}7`)?.name || 'Rohan Gupta',
+    subject: teachers.find(t => t.id === `${tIdPrefix}7`)?.subject || 'Biology',
+    startDate: '2026-07-15',
+    endDate: '2026-07-15',
+    leaveType: 'Casual Leave',
+    reason: 'Personal urgent work at hometown',
+    status: 'Pending',
+    createdAt: '2026-07-14T15:00:00.000Z'
+  });
+
+
+  // 16-07-2026 (Thursday): All Present, 0 Substitutions, 0 Extras, 1 Pending Leave
+  teachers.forEach(t => {
+    attendanceList.push({
+      id: `${prefix}_att_2026-07-16_${t.id}`,
+      date: '2026-07-16',
+      teacherId: t.id,
+      status: 'Present',
+      substituteAssigned: false,
+      substitutes: {}
+    });
+  });
+
+  leaveRequests.push({
+    id: `${prefix}_lv_2026-07-16_1`,
+    teacherId: `${tIdPrefix}8`,
+    teacherName: teachers.find(t => t.id === `${tIdPrefix}8`)?.name || 'Neha Iyer',
+    subject: teachers.find(t => t.id === `${tIdPrefix}8`)?.subject || 'Chemistry',
+    startDate: '2026-07-16',
+    endDate: '2026-07-17',
+    leaveType: 'Sick Leave',
+    reason: 'Medical health checkup and recovery',
+    status: 'Pending',
+    createdAt: '2026-07-15T10:00:00.000Z'
+  });
+
+
+  // 17-07-2026 (Friday): 2 Absent, 3 Substitutes, 1 Extra, 2 Pending Leaves
+  const absentTeacher17_1 = teachers.find(t => t.id === `${tIdPrefix}2`) || teachers[1];
+  const absentTeacher17_2 = teachers.find(t => t.id === `${tIdPrefix}4`) || teachers[3];
+  teachers.forEach(t => {
+    const isAbsent = t.id === absentTeacher17_1.id || t.id === absentTeacher17_2.id;
+    attendanceList.push({
+      id: `${prefix}_att_2026-07-17_${t.id}`,
+      date: '2026-07-17',
+      teacherId: t.id,
+      status: isAbsent ? 'Absent' : 'Present',
+      substituteAssigned: isAbsent,
+      substitutes: isAbsent ? { '2': teachers.find(other => other.id !== t.id)?.id || '' } : {}
+    });
+  });
+
+  substituteAssignments.push({
+    id: `${prefix}_sub_2026-07-17_1`,
+    date: '2026-07-17',
+    day: 'Friday',
+    periodIndex: 2,
+    classSection: absentTeacher17_1.classSection,
+    absentTeacherId: absentTeacher17_1.id,
+    absentTeacherName: absentTeacher17_1.name,
+    substituteTeacherId: teachers.find(other => other.id !== absentTeacher17_1.id)?.id || '',
+    substituteTeacherName: teachers.find(other => other.id !== absentTeacher17_1.id)?.name || '',
+    subject: absentTeacher17_1.subject,
+    status: 'Assigned',
+    createdAt: '2026-07-16T08:00:00.000Z'
+  });
+  substituteAssignments.push({
+    id: `${prefix}_sub_2026-07-17_2`,
+    date: '2026-07-17',
+    day: 'Friday',
+    periodIndex: 3,
+    classSection: absentTeacher17_2.classSection,
+    absentTeacherId: absentTeacher17_2.id,
+    absentTeacherName: absentTeacher17_2.name,
+    substituteTeacherId: teachers.find(other => other.id !== absentTeacher17_2.id && other.id !== absentTeacher17_1.id)?.id || '',
+    substituteTeacherName: teachers.find(other => other.id !== absentTeacher17_2.id && other.id !== absentTeacher17_1.id)?.name || '',
+    subject: absentTeacher17_2.subject,
+    status: 'Assigned',
+    createdAt: '2026-07-16T08:15:00.000Z'
+  });
+  substituteAssignments.push({
+    id: `${prefix}_sub_2026-07-17_3`,
+    date: '2026-07-17',
+    day: 'Friday',
+    periodIndex: 5,
+    classSection: absentTeacher17_1.classSection,
+    absentTeacherId: absentTeacher17_1.id,
+    absentTeacherName: absentTeacher17_1.name,
+    substituteTeacherId: teachers.find(other => other.id !== absentTeacher17_1.id)?.id || '',
+    substituteTeacherName: teachers.find(other => other.id !== absentTeacher17_1.id)?.name || '',
+    subject: absentTeacher17_1.subject,
+    status: 'Assigned',
+    createdAt: '2026-07-16T09:00:00.000Z'
+  });
+
+  extraClassRequests.push({
+    id: `${prefix}_ext_2026-07-17_1`,
+    teacherId: teachers[4].id,
+    teacherName: teachers[4].name,
+    employeeId: isDemo ? 'DEMO005' : 'EMP005',
+    department: teachers[4].department || 'Social Sciences',
+    subject: teachers[4].subject,
+    classSection: 'Grade 11-A',
+    date: '2026-07-17',
+    day: 'Friday',
+    periodIndex: 6,
+    requestType: 'Remedial Class',
+    priority: 'Normal',
+    status: 'Approved',
+    createdAt: '2026-07-16T12:00:00.000Z',
+    submittedOn: '2026-07-16 12:00 PM'
+  });
+
+  leaveRequests.push({
+    id: `${prefix}_lv_2026-07-17_1`,
+    teacherId: `${tIdPrefix}9`,
+    teacherName: teachers.find(t => t.id === `${tIdPrefix}9`)?.name || 'Karan Malhotra',
+    subject: teachers.find(t => t.id === `${tIdPrefix}9`)?.subject || 'Art',
+    startDate: '2026-07-17',
+    endDate: '2026-07-17',
+    leaveType: 'Casual Leave',
+    reason: 'Urgent family emergency works',
+    status: 'Pending',
+    createdAt: '2026-07-16T14:00:00.000Z'
+  });
+  leaveRequests.push({
+    id: `${prefix}_lv_2026-07-17_2`,
+    teacherId: `${tIdPrefix}10`,
+    teacherName: teachers.find(t => t.id === `${tIdPrefix}10`)?.name || 'Ishita Roy',
+    subject: teachers.find(t => t.id === `${tIdPrefix}10`)?.subject || 'History',
+    startDate: '2026-07-17',
+    endDate: '2026-07-20',
+    leaveType: 'Sick Leave',
+    reason: 'Fever and viral throat infection recovery',
+    status: 'Pending',
+    createdAt: '2026-07-16T15:30:00.000Z'
+  });
+
+
+  // 20-07-2026 (Monday): 3 Absent, 4 Substitutes, 3 Extras, 2 Leaves
+  const absentTeacher20_1 = teachers.find(t => t.id === `${tIdPrefix}1`) || teachers[0];
+  const absentTeacher20_2 = teachers.find(t => t.id === `${tIdPrefix}5`) || teachers[4];
+  const absentTeacher20_3 = teachers.find(t => t.id === `${tIdPrefix}6`) || teachers[5];
+  teachers.forEach(t => {
+    const isAbsent = t.id === absentTeacher20_1.id || t.id === absentTeacher20_2.id || t.id === absentTeacher20_3.id;
+    attendanceList.push({
+      id: `${prefix}_att_2026-07-20_${t.id}`,
+      date: '2026-07-20',
+      teacherId: t.id,
+      status: isAbsent ? 'Absent' : 'Present',
+      substituteAssigned: isAbsent,
+      substitutes: isAbsent ? { '2': teachers.find(other => other.id !== t.id)?.id || '' } : {}
+    });
+  });
+
+  substituteAssignments.push({
+    id: `${prefix}_sub_2026-07-20_1`,
+    date: '2026-07-20',
+    day: 'Monday',
+    periodIndex: 2,
+    classSection: absentTeacher20_1.classSection,
+    absentTeacherId: absentTeacher20_1.id,
+    absentTeacherName: absentTeacher20_1.name,
+    substituteTeacherId: teachers.find(other => other.id !== absentTeacher20_1.id)?.id || '',
+    substituteTeacherName: teachers.find(other => other.id !== absentTeacher20_1.id)?.name || '',
+    subject: absentTeacher20_1.subject,
+    status: 'Assigned',
+    createdAt: '2026-07-19T08:00:00.000Z'
+  });
+  substituteAssignments.push({
+    id: `${prefix}_sub_2026-07-20_2`,
+    date: '2026-07-20',
+    day: 'Monday',
+    periodIndex: 3,
+    classSection: absentTeacher20_2.classSection,
+    absentTeacherId: absentTeacher20_2.id,
+    absentTeacherName: absentTeacher20_2.name,
+    substituteTeacherId: teachers.find(other => other.id !== absentTeacher20_2.id && other.id !== absentTeacher20_1.id)?.id || '',
+    substituteTeacherName: teachers.find(other => other.id !== absentTeacher20_2.id && other.id !== absentTeacher20_1.id)?.name || '',
+    subject: absentTeacher20_2.subject,
+    status: 'Assigned',
+    createdAt: '2026-07-19T08:15:00.000Z'
+  });
+  substituteAssignments.push({
+    id: `${prefix}_sub_2026-07-20_3`,
+    date: '2026-07-20',
+    day: 'Monday',
+    periodIndex: 5,
+    classSection: absentTeacher20_3.classSection,
+    absentTeacherId: absentTeacher20_3.id,
+    absentTeacherName: absentTeacher20_3.name,
+    substituteTeacherId: teachers.find(other => other.id !== absentTeacher20_3.id)?.id || '',
+    substituteTeacherName: teachers.find(other => other.id !== absentTeacher20_3.id)?.name || '',
+    subject: absentTeacher20_3.subject,
+    status: 'Assigned',
+    createdAt: '2026-07-19T09:00:00.000Z'
+  });
+  substituteAssignments.push({
+    id: `${prefix}_sub_2026-07-20_4`,
+    date: '2026-07-20',
+    day: 'Monday',
+    periodIndex: 6,
+    classSection: absentTeacher20_1.classSection,
+    absentTeacherId: absentTeacher20_1.id,
+    absentTeacherName: absentTeacher20_1.name,
+    substituteTeacherId: teachers.find(other => other.id !== absentTeacher20_1.id)?.id || '',
+    substituteTeacherName: teachers.find(other => other.id !== absentTeacher20_1.id)?.name || '',
+    subject: absentTeacher20_1.subject,
+    status: 'Assigned',
+    createdAt: '2026-07-19T09:15:00.000Z'
+  });
+
+  extraClassRequests.push({
+    id: `${prefix}_ext_2026-07-20_1`,
+    teacherId: teachers[2].id,
+    teacherName: teachers[2].name,
+    employeeId: isDemo ? 'DEMO003' : 'EMP003',
+    department: teachers[2].department || 'Languages',
+    subject: teachers[2].subject,
+    classSection: 'Grade 10-B',
+    date: '2026-07-20',
+    day: 'Monday',
+    periodIndex: 5,
+    requestType: 'Revision Class',
+    priority: 'High',
+    status: 'Approved',
+    createdAt: '2026-07-19T10:00:00.000Z',
+    submittedOn: '2026-07-19 10:00 AM'
+  });
+  extraClassRequests.push({
+    id: `${prefix}_ext_2026-07-20_2`,
+    teacherId: teachers[3].id,
+    teacherName: teachers[3].name,
+    employeeId: isDemo ? 'DEMO004' : 'EMP004',
+    department: teachers[3].department || 'Science',
+    subject: teachers[3].subject,
+    classSection: 'Grade 9-A',
+    date: '2026-07-20',
+    day: 'Monday',
+    periodIndex: 6,
+    requestType: 'Doubt Clearing',
+    priority: 'Normal',
+    status: 'Approved',
+    createdAt: '2026-07-19T11:00:00.000Z',
+    submittedOn: '2026-07-19 11:00 AM'
+  });
+  extraClassRequests.push({
+    id: `${prefix}_ext_2026-07-20_3`,
+    teacherId: teachers[4].id,
+    teacherName: teachers[4].name,
+    employeeId: isDemo ? 'DEMO005' : 'EMP005',
+    department: teachers[4].department || 'Social Sciences',
+    subject: teachers[4].subject,
+    classSection: 'Grade 11-A',
+    date: '2026-07-20',
+    day: 'Monday',
+    periodIndex: 2,
+    requestType: 'Revision Class',
+    priority: 'High',
+    status: 'Approved',
+    createdAt: '2026-07-19T12:00:00.000Z',
+    submittedOn: '2026-07-19 12:00 PM'
+  });
+
+  leaveRequests.push({
+    id: `${prefix}_lv_2026-07-20_1`,
+    teacherId: `${tIdPrefix}11`,
+    teacherName: teachers.find(t => t.id === `${tIdPrefix}11`)?.name || 'Aditya Nair',
+    subject: teachers.find(t => t.id === `${tIdPrefix}11`)?.subject || 'English',
+    startDate: '2026-07-20',
+    endDate: '2026-07-20',
+    leaveType: 'Casual Leave',
+    reason: 'Family event checkup',
+    status: 'Pending',
+    createdAt: '2026-07-19T14:00:00.000Z'
+  });
+  leaveRequests.push({
+    id: `${prefix}_lv_2026-07-20_2`,
+    teacherId: `${tIdPrefix}12`,
+    teacherName: teachers.find(t => t.id === `${tIdPrefix}12`)?.name || 'Pooja Chatterjee',
+    subject: teachers.find(t => t.id === `${tIdPrefix}12`)?.subject || 'Science',
+    startDate: '2026-07-20',
+    endDate: '2026-07-21',
+    leaveType: 'Casual Leave',
+    reason: 'Attending personal work',
+    status: 'Pending',
+    createdAt: '2026-07-19T15:00:00.000Z'
+  });
 }
 
 function seedDemoData(): ERPDataState {
@@ -699,8 +1189,11 @@ function seedDemoData(): ERPDataState {
     notifications,
     leaveRequests,
     settings,
-    substituteAuditLogs: []
+    substituteAuditLogs: [],
+    substitutionRules: getDefaultSubstitutionRules()
   };
+
+  seedJuly2026Records(teachers, attendance, extraClassRequests, state.substituteAssignments, leaveRequests, true);
 
   runAutomatedAIEngine(state);
   return state;
@@ -726,6 +1219,10 @@ function loadState(): ERPDataState {
       const data = isDemo ? seedDemoData() : seedInitialData();
       fs.writeFileSync(file, JSON.stringify(data, null, 2));
       return data;
+    }
+    if (!parsed.substitutionRules) {
+      parsed.substitutionRules = getDefaultSubstitutionRules();
+      fs.writeFileSync(file, JSON.stringify(parsed, null, 2));
     }
     return parsed;
   } catch (e) {
@@ -1438,27 +1935,77 @@ app.post('/api/extra-classes/run-ai-engine', (req, res) => {
   res.json({ success: true, message: 'AI matchmaking process completed successfully!', state });
 });
 
+// 4. Get Dynamic Substitution Rules API
+app.get('/api/substitutes/rules', (req, res) => {
+  const state = loadState();
+  const rules = state.substitutionRules || getDefaultSubstitutionRules();
+  res.json(rules);
+});
+
+// 5. Update Dynamic Substitution Rules API
+app.post('/api/substitutes/rules', (req, res) => {
+  const state = loadState();
+  const { criteria, settings } = req.body;
+  state.substitutionRules = { criteria, settings };
+  
+  // Re-run the automated engine immediately so that any unlocked assignments use the new rules
+  runAutomatedAIEngine(state);
+  saveState(state);
+  
+  res.json({ 
+    success: true, 
+    message: 'Substitution criteria updated successfully. The automated assignment engine will now use your new priority rules.',
+    state 
+  });
+});
+
+// 6. Reset Dynamic Substitution Rules API
+app.post('/api/substitutes/rules/reset', (req, res) => {
+  const state = loadState();
+  state.substitutionRules = getDefaultSubstitutionRules();
+  
+  // Re-run the automated engine immediately
+  runAutomatedAIEngine(state);
+  saveState(state);
+  
+  res.json({ 
+    success: true, 
+    message: 'Substitution criteria reset to system defaults. The automated assignment engine has been updated.',
+    state 
+  });
+});
+
 // AI Substitute Assignment Engine Helpers
-function getSuggestionsForSlot(state: ERPDataState, absentTeacherId: string, date: string, pIdx: number) {
+function evaluateCandidatesForSlot(state: ERPDataState, absentTeacherId: string, date: string, pIdx: number) {
+  const rules = state.substitutionRules || getDefaultSubstitutionRules();
   const dateObj = new Date(date);
   const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' }) as DayOfWeek;
 
   const absentTeacher = state.teachers.find(t => t.id === absentTeacherId);
   if (!absentTeacher) return [];
 
-  // Find daily absences on this date (not 'Present')
+  const targetSlot = absentTeacher.schedule[dayName]?.[pIdx];
+  if (!targetSlot) return [];
+
+  // Find daily absences/leave on this date (not 'Present')
   const absentTeacherIdsToday = state.attendance
     .filter(att => att.date === date && att.status !== 'Present')
     .map(att => att.teacherId);
 
-  // Filter eligible teachers: active, not absent/leave today, free during this period, not the absent teacher
+  const startOfWeek = new Date(dateObj);
+  startOfWeek.setDate(dateObj.getDate() - ((dateObj.getDay() + 6) % 7)); // Monday
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 5); // Saturday
+  const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
+  const endOfWeekStr = endOfWeek.toISOString().split('T')[0];
+
   const candidates = state.teachers.filter(t => {
     if (t.id === absentTeacherId) return false;
     if (t.status !== 'Active') return false;
     if (t.blockedFromSubstitutions === true) return false;
     if (absentTeacherIdsToday.includes(t.id)) return false;
 
-    // Check leave requests
+    // Check approved leave requests
     const hasApprovedLeave = state.leaveRequests.some(lv => 
       lv.teacherId === t.id && 
       lv.status === 'Approved' && 
@@ -1467,11 +2014,7 @@ function getSuggestionsForSlot(state: ERPDataState, absentTeacherId: string, dat
     );
     if (hasApprovedLeave) return false;
 
-    // Period must be free in standard schedule
-    const scheduleSlot = t.schedule[dayName]?.[pIdx];
-    if (scheduleSlot !== null) return false;
-
-    // Not already assigned as a substitute for that period
+    // Is already assigned as a substitute during this period
     const alreadySubbing = state.substituteAssignments.some(sub => 
       sub.date === date && 
       sub.periodIndex === pIdx && 
@@ -1479,176 +2022,290 @@ function getSuggestionsForSlot(state: ERPDataState, absentTeacherId: string, dat
     );
     if (alreadySubbing) return false;
 
-    // Daily workload limit is not exceeded
-    let dailyWorkloadCount = 0;
-    t.schedule[dayName]?.forEach(slot => { if (slot) dailyWorkloadCount++; });
+    // -------------------------------------------------------------
+    // WORKLOAD LIMITS & CONFLICT-FREE LOGIC FROM SETTINGS
+    // -------------------------------------------------------------
+    
+    // Daily teaching periods load
+    let dailyCount = 0;
+    t.schedule[dayName]?.forEach(s => { if (s) dailyCount++; });
     const subCountToday = state.substituteAssignments.filter(sub => 
       sub.date === date && 
       sub.substituteTeacherId === t.id
     ).length;
-    const totalDailyWorkload = dailyWorkloadCount + subCountToday;
-    const maxDaily = t.maxDailyHours || 6;
-    if (totalDailyWorkload >= maxDaily) return false;
-
-    // Weekly workload limit is not exceeded
-    let weeklyWorkloadCount = 0;
-    Object.keys(t.schedule).forEach(day => {
-      t.schedule[day as DayOfWeek]?.forEach(slot => { if (slot) weeklyWorkloadCount++; });
-    });
     
-    // Determine start and end of week
-    const startOfWeek = new Date(dateObj);
-    startOfWeek.setDate(dateObj.getDate() - dateObj.getDay() + 1); // Monday
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 5); // Saturday
-    const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
-    const endOfWeekStr = endOfWeek.toISOString().split('T')[0];
+    // Check daily cap limit
+    if (dailyCount + subCountToday >= (t.maxDailyHours || 6)) return false;
+    if (subCountToday >= rules.settings.maxDailySubs) return false;
 
+    // Weekly workload
+    let weeklyCount = 0;
+    Object.keys(t.schedule).forEach(d => {
+      t.schedule[d as DayOfWeek]?.forEach(s => { if (s) weeklyCount++; });
+    });
     const subCountThisWeek = state.substituteAssignments.filter(sub => 
       sub.substituteTeacherId === t.id && 
       sub.date >= startOfWeekStr && 
       sub.date <= endOfWeekStr
     ).length;
-    const totalWeeklyWorkload = weeklyWorkloadCount + subCountThisWeek;
-    const maxWeekly = t.maxWeeklyHours || 30;
-    if (totalWeeklyWorkload >= maxWeekly) return false;
+
+    if (weeklyCount + subCountThisWeek >= (t.maxWeeklyHours || 30)) return false;
+    if (subCountThisWeek >= rules.settings.maxWeeklySubs) return false;
+
+    // Mandatory subject qualification check
+    const matchesSubject = t.subject.toLowerCase() === targetSlot.subject.toLowerCase() || 
+                           (t.subjects && t.subjects.some((s: string) => s.toLowerCase() === targetSlot.subject.toLowerCase()));
+    
+    if (rules.settings.subjectQualificationMandatory && !matchesSubject) {
+      return false;
+    }
+
+    if (!rules.settings.allowOutsidePrimarySubject && !matchesSubject) {
+      return false;
+    }
+
+    // Mandatory same class experience check
+    let hasClassExperience = t.classSection === targetSlot.classSection;
+    if (!hasClassExperience) {
+      // check schedule slots for same classSection
+      for (const d of Object.keys(t.schedule)) {
+        const slots = t.schedule[d as DayOfWeek];
+        if (slots && slots.some(s => s && s.classSection === targetSlot.classSection)) {
+          hasClassExperience = true;
+          break;
+        }
+      }
+    }
+
+    if (rules.settings.sameClassExperienceMandatory && !hasClassExperience) {
+      return false;
+    }
+
+    // Free Period at exact Substitution Time (is a hard filter in conflict-free logic)
+    const isPeriodFree = t.schedule[dayName]?.[pIdx] === null;
+    if (!isPeriodFree) return false;
+
+    // Consecutive teaching period limit check
+    let consecutiveCount = 1;
+    // Go backwards
+    for (let i = pIdx - 1; i >= 0; i--) {
+      const hasSlot = t.schedule[dayName]?.[i] !== null;
+      const isSub = state.substituteAssignments.some(sub => sub.date === date && sub.periodIndex === i && sub.substituteTeacherId === t.id);
+      if (hasSlot || isSub) consecutiveCount++;
+      else break;
+    }
+    // Go forwards
+    for (let i = pIdx + 1; i < 11; i++) {
+      const hasSlot = t.schedule[dayName]?.[i] !== null;
+      const isSub = state.substituteAssignments.some(sub => sub.date === date && sub.periodIndex === i && sub.substituteTeacherId === t.id);
+      if (hasSlot || isSub) consecutiveCount++;
+      else break;
+    }
+    if (consecutiveCount > rules.settings.maxConsecutivePeriods) {
+      return false;
+    }
 
     return true;
   });
 
-  const targetSlot = absentTeacher.schedule[dayName]?.[pIdx];
-  if (!targetSlot) return [];
+  // Now map the candidates and compute scores for all enabled criteria
+  const activeCriteria = [...rules.criteria]
+    .filter(c => c.enabled)
+    .sort((a, b) => a.priority - b.priority);
 
-  // Calculate start & end of week for scoring
-  const startOfWeek = new Date(dateObj);
-  startOfWeek.setDate(dateObj.getDate() - dateObj.getDay() + 1);
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 5);
-  const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
-  const endOfWeekStr = endOfWeek.toISOString().split('T')[0];
+  const mapped = candidates.map(t => {
+    const scores: { [id: string]: number } = {};
+    const reasonLines: string[] = [];
 
-  const suggestions = candidates.map(t => {
-    let score = 0;
-    const reasons: string[] = [];
-
-    // Priority 1: Approved Extra Class Requests matching same class & section on this date
-    const approvedExtraClassMatch = state.extraClassRequests.find(ext => 
-      ext.teacherId === t.id && 
-      ext.classSection === targetSlot.classSection &&
-      ext.date === date &&
-      ext.status === 'Approved'
+    // 1. extra_class_priority
+    const matchingRequest = state.extraClassRequests.find(req => 
+      req.teacherId === t.id && 
+      (req.status === 'Waiting for Matching' || req.status === 'Approved' || req.status === 'Pending') && 
+      req.classSection === targetSlot.classSection &&
+      (!req.date || req.date === date) &&
+      (req.periodIndex === undefined || req.periodIndex === pIdx)
     );
+    scores['extra_class_priority'] = matchingRequest ? 1 : 0;
+    if (matchingRequest) reasonLines.push("Extra Class request matches slot");
 
-    let priorityTier = 6;
-    let extraClassFulfilled = false;
+    // 2. free_period_exact
+    const isPeriodFree = t.schedule[dayName]?.[pIdx] === null;
+    scores['free_period_exact'] = isPeriodFree ? 1 : 0;
 
-    if (approvedExtraClassMatch) {
-      score += 10000000; // Tier 1 Priority
-      extraClassFulfilled = true;
-      priorityTier = 1;
-      reasons.push(`✓ Priority 1: Approved Extra Class request for ${targetSlot.classSection}`);
-    }
+    // 3. same_subject
+    const matchesSubject = t.subject.toLowerCase() === targetSlot.subject.toLowerCase() || 
+                           (t.subjects && t.subjects.some((s: string) => s.toLowerCase() === targetSlot.subject.toLowerCase()));
+    scores['same_subject'] = matchesSubject ? 1 : 0;
+    if (matchesSubject) reasonLines.push(`Shares required subject qualification (${t.subject})`);
 
-    // Priority 2: Teachers who requested that subject for another section of the same grade
-    const targetGrade = targetSlot.classSection.split('-')[0]; // e.g. "Grade 10"
-    const hasPriority2Request = state.extraClassRequests.some(ext => 
-      ext.teacherId === t.id &&
-      ext.subject === targetSlot.subject &&
-      ext.classSection.startsWith(targetGrade) &&
-      ext.classSection !== targetSlot.classSection &&
-      (ext.status === 'Approved' || ext.status === 'Pending')
-    );
-
-    if (!extraClassFulfilled && hasPriority2Request) {
-      score += 1000000; // Tier 2 Priority
-      priorityTier = 2;
-      reasons.push(`✓ Priority 2: Requested ${targetSlot.subject} for another section of ${targetGrade}`);
-    }
-
-    // Priority 3: Teachers with the lowest teaching load for that day.
-    let dailyWorkloadCount = 0;
-    t.schedule[dayName]?.forEach(slot => { if (slot) dailyWorkloadCount++; });
+    // 4. lowest_daily_load
+    let dailyCount = 0;
+    t.schedule[dayName]?.forEach(s => { if (s) dailyCount++; });
     const subCountToday = state.substituteAssignments.filter(sub => 
       sub.date === date && 
       sub.substituteTeacherId === t.id
     ).length;
-    const totalDaily = dailyWorkloadCount + subCountToday;
-    const maxDaily = t.maxDailyHours || 6;
-    const dailyBuffer = Math.max(0, maxDaily - totalDaily);
-    score += (dailyBuffer * 10000); 
-    reasons.push(`✓ Priority 3: Low Daily Workload (${totalDaily}/${maxDaily} Periods)`);
+    const totalDaily = dailyCount + subCountToday;
+    scores['lowest_daily_load'] = 10 - totalDaily;
+    reasonLines.push(`Daily load: ${totalDaily} periods`);
 
-    // Priority 4: Teachers with the lowest weekly teaching load.
-    let weeklyWorkloadCount = 0;
+    // 5. lowest_weekly_load
+    let weeklyCount = 0;
     Object.keys(t.schedule).forEach(d => {
-      t.schedule[d as DayOfWeek]?.forEach(slot => { if (slot) weeklyWorkloadCount++; });
+      t.schedule[d as DayOfWeek]?.forEach(s => { if (s) weeklyCount++; });
     });
     const subCountThisWeek = state.substituteAssignments.filter(sub => 
       sub.substituteTeacherId === t.id && 
       sub.date >= startOfWeekStr && 
       sub.date <= endOfWeekStr
     ).length;
-    const totalWeekly = weeklyWorkloadCount + subCountThisWeek;
-    const maxWeekly = t.maxWeeklyHours || 30;
-    const weeklyBuffer = Math.max(0, maxWeekly - totalWeekly);
-    score += (weeklyBuffer * 100);
-    reasons.push(`✓ Priority 4: Low Weekly Workload (${totalWeekly}/${maxWeekly} Periods)`);
+    const totalWeekly = weeklyCount + subCountThisWeek;
+    scores['lowest_weekly_load'] = 100 - totalWeekly;
+    reasonLines.push(`Weekly load: ${totalWeekly} periods`);
 
-    // Priority 5: Teachers from the same department (or subject discipline)
-    let sameDepartment = false;
-    if (t.department && absentTeacher.department && t.department.toLowerCase() === absentTeacher.department.toLowerCase()) {
-      score += 10;
-      sameDepartment = true;
-      reasons.push(`✓ Priority 5: Same Department (${t.department})`);
-    } else if (t.subject.toLowerCase() === absentTeacher.subject.toLowerCase()) {
-      score += 5;
-      sameDepartment = true;
-      reasons.push(`✓ Priority 5: Same Subject discipline`);
+    // 6. same_class_experience
+    let hasClassExperience = t.classSection === targetSlot.classSection;
+    if (!hasClassExperience) {
+      for (const d of Object.keys(t.schedule)) {
+        const slots = t.schedule[d as DayOfWeek];
+        if (slots && slots.some(s => s && s.classSection === targetSlot.classSection)) {
+          hasClassExperience = true;
+          break;
+        }
+      }
     }
+    scores['same_class_experience'] = hasClassExperience ? 1 : 0;
+    if (hasClassExperience) reasonLines.push("Teaches same class or section");
 
-    // Priority 6: Teachers with the fewest substitute assignments this month.
-    const currentMonthStr = date.substring(0, 7);
-    const monthlySubstituteCount = state.substituteAssignments.filter(sub => 
-      sub.substituteTeacherId === t.id && 
-      sub.date.startsWith(currentMonthStr)
-    ).length;
-    score -= (monthlySubstituteCount * 1);
-    reasons.push(`✓ Priority 6: Fair Rotation (${monthlySubstituteCount} substitutions this month)`);
-
-    // Calculate dynamic confidence %
-    let confidence = 85;
-    if (extraClassFulfilled) {
-      confidence = 98;
-    } else {
-      if (sameDepartment) confidence += 5;
-      if (totalDaily <= 3) confidence += 5;
-      confidence = Math.min(97, confidence);
+    // 7. same_grade_experience
+    const grade = targetSlot.classSection.split('-')[0];
+    let hasGradeExperience = t.classSection.startsWith(grade);
+    if (!hasGradeExperience) {
+      for (const d of Object.keys(t.schedule)) {
+        const slots = t.schedule[d as DayOfWeek];
+        if (slots && slots.some(s => s && s.classSection.startsWith(grade))) {
+          hasGradeExperience = true;
+          break;
+        }
+      }
     }
+    scores['same_grade_experience'] = hasGradeExperience ? 1 : 0;
+    if (hasGradeExperience) reasonLines.push(`Teaches grade level ${grade}`);
+
+    // 8. min_consecutive_load
+    let consecutiveCount = 1;
+    for (let i = pIdx - 1; i >= 0; i--) {
+      const hasSlot = t.schedule[dayName]?.[i] !== null;
+      const isSub = state.substituteAssignments.some(sub => sub.date === date && sub.periodIndex === i && sub.substituteTeacherId === t.id);
+      if (hasSlot || isSub) consecutiveCount++;
+      else break;
+    }
+    for (let i = pIdx + 1; i < 11; i++) {
+      const hasSlot = t.schedule[dayName]?.[i] !== null;
+      const isSub = state.substituteAssignments.some(sub => sub.date === date && sub.periodIndex === i && sub.substituteTeacherId === t.id);
+      if (hasSlot || isSub) consecutiveCount++;
+      else break;
+    }
+    scores['min_consecutive_load'] = 11 - consecutiveCount;
+
+    // 9. avoid_back_to_back
+    let backToBackCount = 0;
+    const hasLeft = pIdx > 0 && (t.schedule[dayName]?.[pIdx - 1] !== null || state.substituteAssignments.some(sub => sub.date === date && sub.periodIndex === pIdx - 1 && sub.substituteTeacherId === t.id));
+    const hasRight = pIdx < 10 && (t.schedule[dayName]?.[pIdx + 1] !== null || state.substituteAssignments.some(sub => sub.date === date && sub.periodIndex === pIdx + 1 && sub.substituteTeacherId === t.id));
+    if (hasLeft) backToBackCount++;
+    if (hasRight) backToBackCount++;
+    scores['avoid_back_to_back'] = 2 - backToBackCount;
+
+    // 10. location_proximity
+    let proximityScore = 2; // Staff room
+    if (pIdx > 0) {
+      const prevSlot = t.schedule[dayName]?.[pIdx - 1];
+      const prevSub = state.substituteAssignments.find(sub => sub.date === date && sub.periodIndex === pIdx - 1 && sub.substituteTeacherId === t.id);
+      const prevRoom = prevSlot ? prevSlot.room : (prevSub ? prevSub.classSection : null); // room fallback
+      if (prevRoom) {
+        if (targetSlot.room && prevRoom === targetSlot.room) {
+          proximityScore = 3;
+        } else if (targetSlot.room && (prevRoom.split(' ')[1] === targetSlot.room.split(' ')[1] || prevRoom.substring(0, 5) === targetSlot.room.substring(0, 5))) {
+          proximityScore = 2;
+        } else {
+          proximityScore = 1;
+        }
+      }
+    }
+    scores['location_proximity'] = proximityScore;
+
+    // 11. availability_status
+    scores['availability_status'] = 1;
+
+    // 12. balanced_weekly_distribution
+    scores['balanced_weekly_distribution'] = 20 - subCountThisWeek;
+
+    // Compute dynamic confidence
+    let confidence = 75;
+    if (scores['extra_class_priority'] > 0) confidence += 20;
+    if (scores['same_subject'] > 0) confidence += 10;
+    if (scores['same_class_experience'] > 0) confidence += 5;
+    if (scores['lowest_daily_load'] >= 7) confidence += 5;
+    if (scores['location_proximity'] >= 2) confidence += 5;
+    confidence = Math.min(99, confidence);
+
+    // Build breakdown for UI
+    const finalReasons = reasonLines.map(r => `✓ ${r}`);
+    activeCriteria.forEach((criterion, idx) => {
+      const isFavorable = scores[criterion.id] > 0 || (criterion.id.includes('load') && scores[criterion.id] > 5);
+      if (isFavorable) {
+        finalReasons.push(`✓ Priority ${idx + 1}: ${criterion.name} criteria met`);
+      }
+    });
+
+    // Weighted summed score for backward compatibility & easy sorting representation
+    let summedScore = 0;
+    activeCriteria.forEach(criterion => {
+      const critScore = scores[criterion.id] ?? 0;
+      const weight = Math.pow(10, 12 - criterion.priority);
+      summedScore += critScore * weight;
+    });
 
     return {
       teacherId: t.id,
       name: t.name,
       subject: t.subject,
       classSection: t.classSection,
-      score,
+      scores,
+      score: summedScore,
       confidence,
-      reasons,
+      reasons: finalReasons,
       breakdown: {
-        extraClassFulfilled,
-        freePeriod: true,
+        extraClassFulfilled: scores['extra_class_priority'] > 0,
+        freePeriod: isPeriodFree,
         presentToday: true,
         dailyWorkload: `${totalDaily}/${t.maxDailyHours || 6} Periods`,
         weeklyWorkload: `${totalWeekly}/${t.maxWeeklyHours || 30} Periods`,
-        sameDepartment,
-        reasons,
-        contiguousFreeSlots: 1,
-        monthlySubstituteCount
+        sameDepartment: t.department === absentTeacher.department,
+        reasons: finalReasons,
+        contiguousFreeSlots: consecutiveCount,
+        monthlySubstituteCount: subCountThisWeek
       }
     };
   });
 
-  suggestions.sort((a, b) => b.score - a.score);
-  return suggestions;
+  // Sort lexicographically by enabled criteria priorities
+  mapped.sort((a, b) => {
+    for (const criterion of activeCriteria) {
+      const scoreA = a.scores[criterion.id] ?? 0;
+      const scoreB = b.scores[criterion.id] ?? 0;
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA; // descending order (higher score/performance first)
+      }
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  return mapped;
+}
+
+function getSuggestionsForSlot(state: ERPDataState, absentTeacherId: string, date: string, pIdx: number) {
+  return evaluateCandidatesForSlot(state, absentTeacherId, date, pIdx);
 }
 
 function isSameWeek(date1Str: string, date2Str: string): boolean {
@@ -1750,122 +2407,9 @@ function runAutomatedAIEngine(state: ERPDataState) {
         );
         if (existingSub && existingSub.isLocked) return;
 
-        const eligibleCandidates: {
-          teacher: Teacher;
-          hasP1Request: boolean;
-          p1Request?: ExtraClassRequest;
-          p1MatchesSubject: boolean;
-          dailyWorkload: number;
-          weeklyWorkload: number;
-          monthlySubs: number;
-        }[] = [];
+        const suggestions = evaluateCandidatesForSlot(state, absentTeacherId, date, pIdx);
 
-        state.teachers.forEach(teacher => {
-          if (teacher.id === absentTeacherId) return;
-          if (teacher.status !== 'Active') return;
-          if (teacher.blockedFromSubstitutions === true) return;
-
-          // 1. Is present today
-          const isCandAbsent = state.attendance.some(a => 
-            a.date === date && 
-            a.teacherId === teacher.id && 
-            a.status !== 'Present'
-          );
-          if (isCandAbsent) return;
-
-          // 2. Is not on leave today
-          const hasApprovedLeave = state.leaveRequests.some(lv => 
-            lv.teacherId === teacher.id && 
-            lv.status === 'Approved' && 
-            date >= lv.startDate && 
-            date <= lv.endDate
-          );
-          if (hasApprovedLeave) return;
-
-          // 3. Is not already teaching another class during this period
-          if (teacher.schedule[dayName]?.[pIdx] !== null) return;
-
-          // 4. Is not already assigned as a substitute during this period
-          const alreadyAssignedSub = state.substituteAssignments.some(sub => 
-            sub.date === date && 
-            sub.periodIndex === pIdx && 
-            sub.substituteTeacherId === teacher.id
-          );
-          if (alreadyAssignedSub) return;
-
-          // 5. Is not scheduled for lunch, assembly, zero period, or another protected event
-          const slotConfig = state.settings.scheduleSlots?.[pIdx];
-          if (slotConfig && (!slotConfig.requiresAssignment || ['break', 'assembly', 'zero_period', 'school_over'].includes(slotConfig.type))) {
-            return;
-          }
-
-          // 6. Does not exceed maximum daily workload
-          let dailyCount = 0;
-          teacher.schedule[dayName]?.forEach(s => { if (s) dailyCount++; });
-          const subCountToday = state.substituteAssignments.filter(sub => 
-            sub.date === date && 
-            sub.substituteTeacherId === teacher.id
-          ).length;
-          const extraCountToday = state.extraClassRequests.filter(ext => 
-            ext.date === date && 
-            ext.teacherId === teacher.id && 
-            ext.status === 'Assigned'
-          ).length;
-          if (dailyCount + subCountToday + extraCountToday >= (teacher.maxDailyHours || 6)) return;
-
-          // 7. Does not exceed maximum weekly workload
-          let weeklyCount = 0;
-          Object.keys(teacher.schedule).forEach(d => {
-            teacher.schedule[d as DayOfWeek]?.forEach(s => { if (s) weeklyCount++; });
-          });
-          const startOfWeek = new Date(dateObj);
-          startOfWeek.setDate(dateObj.getDate() - ((dateObj.getDay() + 6) % 7)); // Monday
-          const endOfWeek = new Date(startOfWeek);
-          endOfWeek.setDate(startOfWeek.getDate() + 5); // Saturday
-          const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
-          const endOfWeekStr = endOfWeek.toISOString().split('T')[0];
-
-          const subCountThisWeek = state.substituteAssignments.filter(sub => 
-            sub.substituteTeacherId === teacher.id && 
-            sub.date >= startOfWeekStr && 
-            sub.date <= endOfWeekStr
-          ).length;
-          const extraCountThisWeek = state.extraClassRequests.filter(ext => 
-            ext.teacherId === teacher.id && 
-            ext.status === 'Assigned' && 
-            ext.date >= startOfWeekStr && 
-            ext.date <= endOfWeekStr
-          ).length;
-          if (weeklyCount + subCountThisWeek + extraCountThisWeek >= (teacher.maxWeeklyHours || 30)) return;
-
-          // Check Extra Class Request (Priority 1)
-          const matchingRequest = state.extraClassRequests.find(req => 
-            req.teacherId === teacher.id && 
-            req.status === 'Waiting for Matching' && 
-            req.classSection === slot.classSection &&
-            (!req.date || req.date === date) &&
-            (req.periodIndex === undefined || req.periodIndex === pIdx)
-          );
-
-          // Check monthly substitutions (Priority 4)
-          const currentMonthStr = date.substring(0, 7);
-          const monthlySubs = state.substituteAssignments.filter(sub => 
-            sub.substituteTeacherId === teacher.id && 
-            sub.date.startsWith(currentMonthStr)
-          ).length;
-
-          eligibleCandidates.push({
-            teacher,
-            hasP1Request: !!matchingRequest,
-            p1Request: matchingRequest,
-            p1MatchesSubject: matchingRequest ? matchingRequest.subject.toLowerCase() === slot.subject.toLowerCase() : false,
-            dailyWorkload: dailyCount + subCountToday + extraCountToday,
-            weeklyWorkload: weeklyCount + subCountThisWeek + extraCountThisWeek,
-            monthlySubs
-          });
-        });
-
-        if (eligibleCandidates.length === 0) {
+        if (suggestions.length === 0) {
           const alreadyNotified = state.notifications.some(
             n => n.id === `n_sub_fail_${date}_${absentTeacherId}_${pIdx}`
           );
@@ -1891,66 +2435,33 @@ function runAutomatedAIEngine(state: ERPDataState) {
           return;
         }
 
-        // Sort candidates based on priorities
-        eligibleCandidates.sort((a, b) => {
-          // Priority 1: Teacher Requested an Extra Class
-          if (a.hasP1Request && !b.hasP1Request) return -1;
-          if (!a.hasP1Request && b.hasP1Request) return 1;
-          if (a.hasP1Request && b.hasP1Request) {
-            if (a.p1MatchesSubject && !b.p1MatchesSubject) return -1;
-            if (!a.p1MatchesSubject && b.p1MatchesSubject) return 1;
-          }
+        const best = suggestions[0];
+        const subTeacher = state.teachers.find(t => t.id === best.teacherId);
+        if (!subTeacher) return;
 
-          // Priority 2: Lowest Daily Workload
-          if (a.dailyWorkload !== b.dailyWorkload) {
-            return a.dailyWorkload - b.dailyWorkload;
-          }
-
-          // Priority 3: Lowest Weekly Workload
-          if (a.weeklyWorkload !== b.weeklyWorkload) {
-            return a.weeklyWorkload - b.weeklyWorkload;
-          }
-
-          // Priority 4: Fair Rotation (monthly caps)
-          if (a.monthlySubs !== b.monthlySubs) {
-            return a.monthlySubs - b.monthlySubs;
-          }
-
-          return a.teacher.name.localeCompare(b.teacher.name);
-        });
-
-        const best = eligibleCandidates[0];
-        const subTeacher = best.teacher;
-
-        let reason = "Fair Rotation";
-        if (best.hasP1Request) {
-          reason = "Extra Class Request matched.";
-        } else if (best.dailyWorkload !== (eligibleCandidates[1]?.dailyWorkload ?? -1)) {
-          reason = "Lowest Daily Workload";
-        } else if (best.weeklyWorkload !== (eligibleCandidates[1]?.weeklyWorkload ?? -1)) {
-          reason = "Lowest Weekly Workload";
-        }
+        const reason = best.reasons[0] || 'Meets school priority rules';
 
         // Update Extra Class request state to Assigned if matched
-        if (best.hasP1Request && best.p1Request) {
-          best.p1Request.status = 'Assigned';
-          best.p1Request.date = date;
-          best.p1Request.periodIndex = pIdx;
-          best.p1Request.aiValidationReasons = [
-            `AI automatically matched with priority rank 1: Extra Class Request`,
-            `Subject Match: ${best.p1MatchesSubject ? 'Yes' : 'No'}`
-          ];
+        if (best.breakdown.extraClassFulfilled) {
+          const matchingRequest = state.extraClassRequests.find(req => 
+            req.teacherId === best.teacherId && 
+            req.status === 'Waiting for Matching' && 
+            req.classSection === slot.classSection &&
+            (!req.date || req.date === date) &&
+            (req.periodIndex === undefined || req.periodIndex === pIdx)
+          );
+          if (matchingRequest) {
+            matchingRequest.status = 'Assigned';
+            matchingRequest.date = date;
+            matchingRequest.periodIndex = pIdx;
+            matchingRequest.aiValidationReasons = [
+              `AI automatically matched with priority rank: Extra Class Request`,
+              `Subject Match: Yes`
+            ];
+          }
         }
 
         const assignmentId = existingSub ? existingSub.id : `sub_${Date.now()}_${pIdx}`;
-        let aiConfidence = 85;
-        if (best.hasP1Request) {
-          aiConfidence = 98;
-        } else {
-          if (subTeacher.department === absentTeacher.department) aiConfidence += 5;
-          if (best.dailyWorkload <= 3) aiConfidence += 5;
-          aiConfidence = Math.min(97, aiConfidence);
-        }
 
         const assignment: SubstituteAssignment = {
           id: assignmentId,
@@ -1966,24 +2477,9 @@ function runAutomatedAIEngine(state: ERPDataState) {
           status: 'Assigned',
           createdAt: new Date().toISOString(),
           isLocked: existingSub ? existingSub.isLocked : false,
-          aiConfidence,
+          aiConfidence: best.confidence,
           aiSelectionReason: `Automatically allocated by the AI Substitute Engine. Reason: ${reason}`,
-          decisionBreakdown: {
-            extraClassFulfilled: best.hasP1Request,
-            freePeriod: true,
-            presentToday: true,
-            dailyWorkload: `${best.dailyWorkload}/${subTeacher.maxDailyHours || 6} Periods`,
-            weeklyWorkload: `${best.weeklyWorkload}/${subTeacher.maxWeeklyHours || 30} Periods`,
-            sameDepartment: subTeacher.department === absentTeacher.department,
-            reasons: [
-              `Priority Match: ${reason}`,
-              `Daily Workload: ${best.dailyWorkload} periods`,
-              `Weekly Workload: ${best.weeklyWorkload} periods`,
-              `Monthly substitute duty count: ${best.monthlySubs}`
-            ],
-            contiguousFreeSlots: 1,
-            monthlySubstituteCount: best.monthlySubs
-          }
+          decisionBreakdown: best.breakdown
         };
 
         if (existingSub) {
@@ -2020,7 +2516,7 @@ function runAutomatedAIEngine(state: ERPDataState) {
           absentTeacherName: absentTeacher.name,
           assignedTeacherName: subTeacher.name,
           actionType: 'Auto Assigned',
-          details: `AI automatically assigned ${subTeacher.name} as substitute. Reason: ${reason}. Workloads: Daily ${best.dailyWorkload}, Weekly ${best.weeklyWorkload}.`,
+          details: `AI automatically assigned ${subTeacher.name} as substitute. Reason: ${reason}. Workloads: Daily ${best.breakdown.dailyWorkload}, Weekly ${best.breakdown.weeklyWorkload}.`,
           operator: 'AI Substitute Engine'
         });
 

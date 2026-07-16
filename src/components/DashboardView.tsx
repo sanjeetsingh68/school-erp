@@ -17,6 +17,7 @@ import {
   UserSession, 
   DayOfWeek 
 } from '../types';
+import { formatISTDateToDDMMYYYY } from '../utils/dateUtils';
 
 interface DashboardViewProps {
   state: ERPDataState;
@@ -75,6 +76,13 @@ export default function DashboardView({
   const todaysSubstitutes = state.substituteAssignments.filter(sub => sub.date === selectedDate);
   const substitutesCount = todaysSubstitutes.length;
 
+  // Leave requests relevant to selected date
+  const leavesForSelectedDate = (state.leaveRequests || []).filter(lv => {
+    return selectedDate >= lv.startDate && selectedDate <= lv.endDate;
+  });
+  const pendingLeavesCount = leavesForSelectedDate.filter(lv => lv.status === 'Pending').length;
+  const approvedLeavesCount = leavesForSelectedDate.filter(lv => lv.status === 'Approved').length;
+
   // Unread notifications count
   const unreadNotifications = state.notifications.filter(n => !n.read);
 
@@ -117,7 +125,7 @@ export default function DashboardView({
             {isAdmin ? 'Academic Administration Dashboard' : `Welcome Back, ${session.name}!`}
           </h2>
           <p className={`text-xs font-semibold ${darkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
-            System Date Focus: <span className="text-blue-600 font-bold">{selectedDate}</span> ({currentDayName})
+            System Date Focus: <span className="text-[#F59E0B] font-bold">{formatISTDateToDDMMYYYY(selectedDate)}</span> ({currentDayName})
             {isWeekend && ' - Showing Monday Schedule Preview (Weekend)'}
           </p>
         </div>
@@ -179,9 +187,11 @@ export default function DashboardView({
                 <span className="text-[10px] font-bold font-mono text-slate-400">Attendance</span>
               </div>
               <p className={`text-2xl font-black ${absentCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-450'}`}>
-                {absentCount > 0 ? `${absentCount} Absent` : '100% Present'}
+                {absentCount > 0 ? `${totalTeachers - absentCount} / ${totalTeachers} Present` : `${totalTeachers} / ${totalTeachers} Present`}
               </p>
-              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Daily Presence</h4>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                {absentCount > 0 ? `${absentCount} Absent` : '100% Present'}
+              </h4>
             </div>
 
             {/* Scheduled Extras */}
@@ -198,8 +208,8 @@ export default function DashboardView({
                 </span>
                 <span className="text-[10px] font-bold font-mono text-slate-400">Extra Hours</span>
               </div>
-              <p className="text-2xl font-black text-[#F59E0B]">{extraClassesCount}</p>
-              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Scheduled Today</h4>
+              <p className="text-2xl font-black text-[#F59E0B]">{extraClassesCount} Extra Hours</p>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Scheduled on {formatISTDateToDDMMYYYY(selectedDate)}</h4>
             </div>
 
             {/* Substitutions */}
@@ -217,14 +227,14 @@ export default function DashboardView({
                 <span className="text-[10px] font-bold font-mono text-slate-400">Substitutions</span>
               </div>
               <p className="text-2xl font-black text-[#F59E0B]">{substitutesCount} Slots</p>
-              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Assigned Today</h4>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Assigned on {formatISTDateToDDMMYYYY(selectedDate)}</h4>
             </div>
 
             {/* Pending Leaves */}
             <div 
               onClick={() => onNavigate('leaves')}
               className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md border-t-4 border-t-[#F59E0B] ${
-                (state.leaveRequests || []).filter(lv => lv.status === 'Pending').length > 0 
+                pendingLeavesCount > 0 
                   ? 'bg-amber-50/45 border-amber-200 dark:bg-amber-950/10 dark:border-amber-900/45 text-amber-900 dark:text-amber-105'
                   : darkTheme ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
               }`}
@@ -232,7 +242,7 @@ export default function DashboardView({
             >
               <div className="flex justify-between items-start mb-3">
                 <span className={`p-2 rounded-xl ${
-                  (state.leaveRequests || []).filter(lv => lv.status === 'Pending').length > 0 
+                  pendingLeavesCount > 0 
                     ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' 
                     : 'bg-[#FFF8F1] text-[#F59E0B] border border-[#FED7AA]'
                 }`}>
@@ -240,10 +250,14 @@ export default function DashboardView({
                 </span>
                 <span className="text-[10px] font-bold font-mono text-slate-400">Leaves</span>
               </div>
-              <p className={`text-2xl font-black ${(state.leaveRequests || []).filter(lv => lv.status === 'Pending').length > 0 ? 'text-[#F59E0B]' : ''}`}>
-                {(state.leaveRequests || []).filter(lv => lv.status === 'Pending').length} Pending
+              <p className={`text-2xl font-black ${pendingLeavesCount > 0 ? 'text-[#F59E0B]' : ''}`}>
+                {pendingLeavesCount > 0 
+                  ? `${pendingLeavesCount} Pending` 
+                  : approvedLeavesCount > 0 
+                    ? `${approvedLeavesCount} Approved Leave` 
+                    : '0 Leaves'}
               </p>
-              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Pending Leaves</h4>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">For {formatISTDateToDDMMYYYY(selectedDate)}</h4>
             </div>
 
             {/* Slotted Classes */}
@@ -261,7 +275,7 @@ export default function DashboardView({
                 <span className="text-[10px] font-bold font-mono text-slate-400">Lessons</span>
               </div>
               <p className="text-2xl font-black text-[#F59E0B]">{standardClassesToday} Slotted</p>
-              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Periods Active Today</h4>
+              <h4 className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Periods Active on {formatISTDateToDDMMYYYY(selectedDate)}</h4>
             </div>
 
           </div>
@@ -294,7 +308,7 @@ export default function DashboardView({
                   <div className="py-8 text-center text-slate-400 text-sm flex flex-col items-center gap-2">
                     <CheckCircle className="h-8 w-8 text-emerald-500 animate-pulse" />
                     <p className="font-bold text-slate-800 dark:text-white">All Scheduled Faculty are Present</p>
-                    <p className="text-xs text-slate-500">Every lesson hour today is covered by primary assigned teachers.</p>
+                    <p className="text-xs text-slate-500">Every lesson hour on {formatISTDateToDDMMYYYY(selectedDate)} is covered by primary assigned teachers.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">

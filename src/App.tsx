@@ -39,12 +39,32 @@ import NotificationCenter from './components/NotificationCenter';
 import ExtraClassRequests from './components/ExtraClassRequests';
 import ExtraClassRequestCenter from './components/ExtraClassRequestCenter';
 import AIDemonstration from './components/AIDemonstration';
+import DatePickerPopup from './components/DatePickerPopup';
 import { AnimatePresence, motion } from 'motion/react';
+import { getISTDateString, formatISTClock, formatISTDateToDDMMYYYY } from './utils/dateUtils';
 
 export default function App() {
   const [session, setSession] = useState<UserSession | null>(null);
   const [currentTab, setCurrentTab] = useState('dashboard');
-  const [selectedDate, setSelectedDate] = useState('2026-05-25'); // Anchored on today's state date
+  const [selectedDate, setSelectedDate] = useState(() => getISTDateString());
+  const [currentClockStr, setCurrentClockStr] = useState(() => formatISTClock());
+  const [actualToday, setActualToday] = useState(() => getISTDateString());
+
+  // Real-time Clock and Midnight Rollover Update effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      setCurrentClockStr(formatISTClock(now));
+      
+      const todayIST = getISTDateString(now);
+      if (todayIST !== actualToday) {
+        setActualToday(todayIST);
+        setSelectedDate(todayIST);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [actualToday]);
+
   const [darkTheme, setDarkTheme] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -490,10 +510,29 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4.5">
-            {/* Live UTC Clock */}
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF8F1] border border-[#FED7AA]/30 rounded-lg text-slate-650 font-mono font-semibold text-[11px]">
-              <Clock className="h-3.5 w-3.5 text-[#F59E0B]" />
-              <span>UTC: {selectedDate} 08:00 AM</span>
+            {/* Live IST Clock & Interactive Calendar Picker */}
+            <div className="hidden lg:flex items-center gap-3">
+              {/* Clock Widget */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF8F1] dark:bg-amber-955/20 border border-[#FED7AA]/30 rounded-lg text-slate-650 dark:text-slate-300 font-mono font-semibold text-[11px] h-[34px] shadow-xs">
+                <Clock className="h-3.5 w-3.5 text-[#F59E0B]" />
+                <span>IST: {currentClockStr}</span>
+              </div>
+
+              {/* Date Focus Selector */}
+              <DatePickerPopup 
+                selectedDate={selectedDate}
+                onChange={setSelectedDate}
+                darkTheme={darkTheme}
+              />
+            </div>
+
+            {/* Simple clock/calendar for medium/small screens */}
+            <div className="flex lg:hidden items-center gap-1.5">
+              <DatePickerPopup 
+                selectedDate={selectedDate}
+                onChange={setSelectedDate}
+                darkTheme={darkTheme}
+              />
             </div>
 
             {/* Light/Dark Toggle */}

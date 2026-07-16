@@ -30,6 +30,8 @@ import {
 } from 'lucide-react';
 import { Teacher, ERPDataState, DayOfWeek, SubstituteAssignment } from '../types';
 import { apiFetch } from '../lib/api';
+import { formatISTDateToDDMMYYYY } from '../utils/dateUtils';
+import SubstitutionCriteriaManager from './SubstitutionCriteriaManager';
 
 interface SubstituteManagementProps {
   state: ERPDataState;
@@ -48,7 +50,7 @@ export default function SubstituteManagement({
 }: SubstituteManagementProps) {
   
   // Tab control
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'audit_logs'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'audit_logs' | 'criteria'>('dashboard');
 
   // Calculate current weekday DayOfWeek
   const checkDate = new Date(selectedDate);
@@ -337,6 +339,18 @@ export default function SubstituteManagement({
             <History className="h-3.5 w-3.5" />
             AI Audit Logs
           </button>
+          <button
+            id="substitute-criteria-tab-btn"
+            onClick={() => setActiveTab('criteria')}
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'criteria'
+                ? 'bg-white dark:bg-slate-800 text-[#F59E0B] dark:text-amber-400 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Substitution Criteria
+          </button>
         </div>
       </div>
 
@@ -352,7 +366,7 @@ export default function SubstituteManagement({
               <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
                 <h3 className="font-bold text-base flex items-center gap-2">
                   <span className="w-1.5 h-4 bg-red-500 rounded-full"></span>
-                  Educators Needing Replacement Cover • {selectedDate}
+                  Educators Needing Replacement Cover • {formatISTDateToDDMMYYYY(selectedDate)}
                 </h3>
                 <span className="text-xs px-2.5 py-1 font-bold rounded-lg bg-[#FFF8F1] dark:bg-amber-955/40 text-[#F59E0B] dark:text-amber-400 border border-[#FED7AA]/30">
                   {dayName}
@@ -1042,6 +1056,12 @@ export default function SubstituteManagement({
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'criteria' && (
+        <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+          <SubstitutionCriteriaManager onUpdateState={onUpdateState} />
         </div>
       )}
 

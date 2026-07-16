@@ -58,6 +58,21 @@ export default function TimetableManagement({
   const [selectedTeacherId, setSelectedTeacherId] = useState(teachers[0]?.id || '');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
 
+  // Sync active day of week with globally selected date
+  useEffect(() => {
+    if (selectedDate) {
+      const parts = selectedDate.split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        let dayName = d.toLocaleDateString('en-US', { weekday: 'long' }) as DayOfWeek;
+        if (dayName === 'Sunday' as any) {
+          dayName = 'Monday';
+        }
+        setSelectedDay(dayName);
+      }
+    }
+  }, [selectedDate]);
+
   // Top Synchronized Scrollbar & Horizontal Navigation State and Refs
   const topScrollRef = useRef<HTMLDivElement>(null);
   const bottomScrollRef = useRef<HTMLDivElement>(null);

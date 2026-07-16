@@ -202,6 +202,29 @@ export interface SubstituteAuditLog {
   operator: string;
 }
 
+export interface SubstitutionCriterion {
+  id: string;
+  name: string;
+  explanation: string;
+  enabled: boolean;
+  priority: number;
+}
+
+export interface SubstitutionSettings {
+  maxDailySubs: number;
+  maxWeeklySubs: number;
+  maxConsecutivePeriods: number;
+  subjectQualificationMandatory: boolean;
+  sameClassExperienceMandatory: boolean;
+  allowOutsidePrimarySubject: boolean;
+  allowVolunteers: boolean;
+}
+
+export interface SubstitutionRulesConfig {
+  criteria: SubstitutionCriterion[];
+  settings: SubstitutionSettings;
+}
+
 export interface ERPDataState {
   teachers: Teacher[];
   attendance: AttendanceRecord[];
@@ -211,4 +234,5 @@ export interface ERPDataState {
   leaveRequests: LeaveRequest[];
   settings: SystemSettings;
   substituteAuditLogs?: SubstituteAuditLog[];
+  substitutionRules?: SubstitutionRulesConfig;
 }

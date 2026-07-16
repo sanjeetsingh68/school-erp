@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Teacher, AttendanceRecord, ERPDataState } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { formatISTDateToDDMMYYYY } from '../utils/dateUtils';
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -485,7 +486,7 @@ export default function AttendanceTracker({
             }`}>
               <form onSubmit={handleFormSubmit} className="space-y-6">
                 <div className="flex justify-between items-center pb-4 border-b dark:border-slate-800 leading-normal">
-                  <h3 className="font-bold text-base">Roster Staff Attendance • {selectedDate}</h3>
+                  <h3 className="font-bold text-base">Roster Staff Attendance • {formatISTDateToDDMMYYYY(selectedDate)}</h3>
                   
                   <button
                     onClick={handleMarkAllPresent}

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ERPDataState, UserSession, LeaveRequest } from '../types';
+import { getISTDateString } from '../utils/dateUtils';
 
 interface LeaveManagementProps {
   state: ERPDataState;
@@ -48,8 +49,8 @@ export default function LeaveManagement({
   const [activeSubTab, setActiveSubTab] = useState<'apply' | 'history'>(isAdmin ? 'history' : 'apply');
 
   // Teacher Form State
-  const [startDate, setStartDate] = useState('2026-05-26');
-  const [endDate, setEndDate] = useState('2026-05-26');
+  const [startDate, setStartDate] = useState(() => getISTDateString());
+  const [endDate, setEndDate] = useState(() => getISTDateString());
   const [leaveType, setLeaveType] = useState<LeaveRequest['leaveType']>('Sick Leave');
   const [reason, setReason] = useState('');
   
@@ -105,9 +106,9 @@ export default function LeaveManagement({
 
   // Helper to preclose date choices
   const applyQuickDate = (offset: number) => {
-    const d = new Date('2026-05-25'); // Anchored UTC project focus Date
+    const d = new Date(); // Actual current system time
     d.setDate(d.getDate() + offset);
-    const formatted = d.toISOString().split('T')[0];
+    const formatted = getISTDateString(d);
     setStartDate(formatted);
     setEndDate(formatted);
   };
